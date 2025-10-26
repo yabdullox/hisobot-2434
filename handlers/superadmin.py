@@ -506,8 +506,6 @@ async def today_reports(msg: types.Message):
 
     await msg.answer(text, parse_mode="HTML")
 
-
-
 # --- 📊 Umumiy hisobotlar ---
 @router.message(F.text == "📊 Umumiy hisobotlar")
 async def all_reports(msg: types.Message):
