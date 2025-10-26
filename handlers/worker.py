@@ -184,91 +184,108 @@
 #     await msg.answer("👷 Ishchi menyusi:", reply_markup=worker_menu())
 
 
-
-
-
-# handlers/worker.py
 from aiogram import Router, F, types
 from aiogram.types import ReplyKeyboardRemove
 from keyboards.worker_kb import worker_menu
+from database import db
 from config import SUPERADMIN_ID
+import datetime
 
 router = Router()
 
-# 1) Hisobot yuborish - oynani ochadi
+
+# 🧾 HISOBOT YUBORISH (boshlanishi)
 @router.message(F.text == "🧾 Hisobot yuborish")
 async def send_report_prompt(message: types.Message):
     await message.answer(
-        "📤 Iltimos, hisobot matnini yuboring.\nMasalan: 'Bugun 5 ta mijoz, 3 ta tozalash, 1 muammo.'",
+        "📤 Iltimos, hisobot matnini yuboring.\n\nMasalan:\n<b>Bugun 5 ta mijoz, 3 ta tozalash, 1 muammo.</b>",
+        parse_mode="HTML",
         reply_markup=ReplyKeyboardRemove()
     )
 
-# 2) Hisobot matnini qabul qilish — faqat oddiy matnlar uchun (tugma matnlari emas)
+
+# 🧾 HISOBOTNI QABUL QILISH
 @router.message(F.text & ~F.text.in_(["🧾 Hisobot yuborish", "⏰ Ishni boshladim", "🐝 Bonus/Jarimalarim", "🔙 Menyuga qaytish",
                                       "📷 Tozalash rasmi yuborish", "📷 Muammo rasmi yuborish"]))
 async def receive_report(message: types.Message):
-    report_text = message.text
-    # message.bot orqali yuborish — bu main.py dan botni import qilishga hojat qoldirmaydi
+    report_text = message.text.strip()
+
+    conn = db.get_conn()
+    cur = conn.cursor()
+
+    # Ishchini bazadan topamiz
+    worker = cur.execute("SELECT id, filial_id FROM workers WHERE tg_id=?", (message.from_user.id,)).fetchone()
+
+    if not worker:
+        return await message.answer("❌ Siz tizimda ro‘yxatdan o‘tmagansiz.")
+
+    # Hisobotni bazaga yozamiz
+    now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    cur.execute(
+        "INSERT INTO reports (worker_id, filial_id, text, created_at) VALUES (?, ?, ?, ?)",
+        (worker[0], worker[1], report_text, now)
+    )
+    conn.commit()
+    conn.close()
+
+    # Superadminga yuboramiz
     try:
         await message.bot.send_message(
             SUPERADMIN_ID,
-            f"📩 <b>Yangi hisobot</b>\n👷‍♂️ Ishchi: {message.from_user.full_name}\n🆔 {message.from_user.id}\n\n🧾 {report_text}",
+            f"📩 <b>Yangi hisobot</b>\n👷‍♂️ Ishchi: {message.from_user.full_name}\n🆔 <code>{message.from_user.id}</code>\n\n🧾 {report_text}",
             parse_mode="HTML"
         )
     except Exception as e:
-        # log qilish (console)
         print(f"⚠️ Superadminga hisobot yuborishda xato: {e}")
 
-    await message.answer("✅ Hisobot yuborildi! Rahmat 👌", reply_markup=worker_menu)
+    await message.answer("✅ Hisobot yuborildi! Rahmat 👌", reply_markup=worker_menu())
 
 
-# 3) Ishni boshladim
+# ⏰ ISHNI BOSHLADIM
 @router.message(F.text == "⏰ Ishni boshladim")
 async def start_work(message: types.Message):
     await message.answer("✅ Siz ishni boshladingiz 💪", reply_markup=worker_menu)
     try:
         await message.bot.send_message(
             SUPERADMIN_ID,
-            f"🕒 Ishchi ishni boshladi:\n👷‍♂️ {message.from_user.full_name}\n🆔 {message.from_user.id}"
+            f"🕒 Ishchi ishni boshladi:\n👷‍♂️ {message.from_user.full_name}\n🆔 <code>{message.from_user.id}</code>",
+            parse_mode="HTML"
         )
     except Exception as e:
         print(f"⚠️ Ish boshlash haqida yuborishda xato: {e}")
 
 
-# 4) Tozalash rasmi yuborish — ko'rsatma
+# 📷 TOZALASH RASMI YUBORISH
 @router.message(F.text == "📷 Tozalash rasmi yuborish")
 async def send_clean_photo_instruction(message: types.Message):
     await message.answer("📸 Iltimos, tozalash jarayoni rasmini yuboring:", reply_markup=ReplyKeyboardRemove())
 
 
-# 5) Rasmni qabul qilish (tozalash muammosiga ham mos)
+# 📷 RASMLARNI QABUL QILISH (tozalash / muammo)
 @router.message(F.photo)
 async def receive_photo(message: types.Message):
-    # qaysi tip yomon tanilmasligi uchun caption yordamida aniqlash mumkin,
-    # lekin biz oddiygina yuborgan rasmni superadminga jo'natamiz.
     try:
-        # oxirgi (eng katta) foto file_id
         file_id = message.photo[-1].file_id
-        # agar caption bo'lsa, muammo ekanligini taxmin qilamiz
         if message.caption:
-            caption = f"🚨 Muammo rasmi:\n👷‍♂️ {message.from_user.full_name}\n🆔 {message.from_user.id}\n📝 Izoh: {message.caption}"
+            caption = f"🚨 <b>Muammo rasmi:</b>\n👷‍♂️ {message.from_user.full_name}\n🆔 <code>{message.from_user.id}</code>\n📝 {message.caption}"
         else:
-            caption = f"🧹 Tozalash rasmi:\n👷‍♂️ {message.from_user.full_name}\n🆔 {message.from_user.id}"
+            caption = f"🧹 <b>Tozalash rasmi:</b>\n👷‍♂️ {message.from_user.full_name}\n🆔 <code>{message.from_user.id}</code>"
 
-        await message.bot.send_photo(SUPERADMIN_ID, photo=file_id, caption=caption)
+        await message.bot.send_photo(SUPERADMIN_ID, photo=file_id, caption=caption, parse_mode="HTML")
+        await message.answer("✅ Rasm yuborildi!", reply_markup=worker_menu())
     except Exception as e:
-        print(f"⚠️ Rasmni superadminga yuborishda xato: {e}")
+        print(f"⚠️ Rasmni yuborishda xato: {e}")
+        await message.answer("❌ Rasm yuborishda xatolik yuz berdi.", reply_markup=worker_menu())
 
-    await message.answer("✅ Rasm yuborildi!", reply_markup=worker_menu)
 
-
-# 6) Bonus/Jarimalarim
+# 💸 BONUS / JARIMALARIM
 @router.message(F.text == "🐝 Bonus/Jarimalarim")
 async def bonus_info(message: types.Message):
-    await message.answer("💸 Sizda hozircha bonus yoki jarimalar mavjud emas.", reply_markup=worker_menu)
+    await message.answer("💸 Sizda hozircha bonus yoki jarimalar mavjud emas.", reply_markup=worker_menu())
 
 
-# 7) Menyuga qaytish
+# 🔙 MENYUGA QAYTISH
 @router.message(F.text == "🔙 Menyuga qaytish")
 async def back_to_menu(message: types.Message):
-    await message.answer("🔄 Asosiy menyuga qaytdingiz.", reply_markup=worker_menu)
+    await message.answer("🔄 Asosiy menyuga qaytdingiz.", reply_markup=worker_menu())
+
