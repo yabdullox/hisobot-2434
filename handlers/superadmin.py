@@ -1,4 +1,4 @@
-Abdullox, [10/26/2025 3:38 PM]
+
 # from aiogram import Router, types, F
 # from aiogram.fsm.context import FSMContext
 # from aiogram.filters import Command
@@ -119,7 +119,7 @@ Abdullox, [10/26/2025 3:38 PM]
 #     for f in filials:
 #         text += f"🏢 {f[0]} — <code>{f[1]}</code>\n"
 
-Abdullox, [10/26/2025 3:38 PM]
+
 #     await msg.answer(text, parse_mode="HTML")
 #     await state.set_state(DeleteFilial.waiting_for_id)
 
@@ -220,7 +220,6 @@ Abdullox, [10/26/2025 3:38 PM]
 #     await msg.answer("🗑 O‘chirmoqchi bo‘lgan adminning Telegram ID raqamini kiriting:")
 #     await state.set_state(DeleteAdmin.waiting_for_tg_id)
 
-Abdullox, [10/26/2025 3:38 PM]
 # @router.message(DeleteAdmin.waiting_for_tg_id)
 # async def delete_admin_finish(msg: types.Message, state: FSMContext):
 #     tg_id = msg.text.strip()
@@ -334,7 +333,6 @@ async def filial_list(msg: types.Message):
         text += f"📍 {f[1]} — ID: <code>{f[2]}</code>\n"
     await msg.answer(text, parse_mode="HTML", reply_markup=superadmin_menu())
 
-Abdullox, [10/26/2025 3:38 PM]
 # --- 🔹 Filial qo‘shish ---
 @router.message(F.text == "➕ Filial qo‘shish")
 async def add_filial_start(msg: types.Message, state: FSMContext):
@@ -431,7 +429,6 @@ async def add_admin_start(msg: types.Message, state: FSMContext):
     await msg.answer("🧑 Admin ismini kiriting:", reply_markup=ReplyKeyboardRemove())
     await state.set_state(AddAdmin.waiting_for_name)
 
-Abdullox, [10/26/2025 3:38 PM]
 @router.message(AddAdmin.waiting_for_name)
 async def add_admin_tg_id(msg: types.Message, state: FSMContext):
     await state.update_data(name=msg.text)
@@ -581,7 +578,7 @@ async def all_reports(msg: types.Message):
 
     await msg.answer(text, parse_mode="HTML")
 
-Abdullox, [10/26/2025 3:38 PM]
+
 # --- 📦 Export (Excel) ---
 @router.message(F.text == "📦 Export (Excel)")
 async def export_excel(msg: types.Message):
