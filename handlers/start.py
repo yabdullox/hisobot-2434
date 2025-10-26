@@ -54,16 +54,17 @@ async def start_command(message: types.Message, state: FSMContext):
         lambda: db.get_conn().execute("SELECT * FROM workers WHERE tg_id=?", (user_id,)).fetchone()
     )
 
-    if worker:
-        await message.answer(
+    
+        def worker_menu(
+       
             "👷 Ishchi menyusiga xush kelibsiz.",
            reply_markup = worker_menu
-        )
-        return
-
+       )
+    return ReplyKeyboardMarkup(keyboard=kb, resize_keyboard=True)
     # Agar foydalanuvchi topilmasa
     await message.answer(
         "⛔ Siz tizimda ro‘yxatdan o‘tmagansiz.\n"
         "Iltimos, SuperAdmin bilan bog‘laning."
     )
+
 
