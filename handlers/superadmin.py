@@ -80,7 +80,6 @@
 #     await state.set_state(AddFilial.waiting_for_id)
 
 
-# @router.message(AddFilial.waiting_for_id)
 # async def add_filial_finish(msg: types.Message, state: FSMContext):
 #     filial_id = msg.text.strip().upper()
 #     data = await state.get_data()
