@@ -1,4 +1,4 @@
-Abdullox, [10/26/2025 3:38 PM]
+
 # from aiogram import Router, types, F
 # from aiogram.fsm.context import FSMContext
 # from aiogram.filters import Command
@@ -119,7 +119,7 @@ Abdullox, [10/26/2025 3:38 PM]
 #     for f in filials:
 #         text += f"🏢 {f[0]} — <code>{f[1]}</code>\n"
 
-Abdullox, [10/26/2025 3:38 PM]
+
 #     await msg.answer(text, parse_mode="HTML")
 #     await state.set_state(DeleteFilial.waiting_for_id)
 
@@ -220,7 +220,6 @@ Abdullox, [10/26/2025 3:38 PM]
 #     await msg.answer("🗑 O‘chirmoqchi bo‘lgan adminning Telegram ID raqamini kiriting:")
 #     await state.set_state(DeleteAdmin.waiting_for_tg_id)
 
-Abdullox, [10/26/2025 3:38 PM]
 # @router.message(DeleteAdmin.waiting_for_tg_id)
 # async def delete_admin_finish(msg: types.Message, state: FSMContext):
 #     tg_id = msg.text.strip()
