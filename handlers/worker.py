@@ -289,3 +289,51 @@ async def show_today_reports(msg: types.Message):
 
     text = "🗓 <b>Bugungi hisobotlaringiz:</b>\n\n" + "\n".join([f"🕒 {r[1]} — {r[0]}" for r in reports])
     await msg.answer(text, parse_mode="HTML", reply_markup=worker_menu())
+
+# === 📦 MAHSULOTLARIM ===
+@router.message(F.text == "📦 Mahsulotlarim")
+async def show_or_add_products(msg: types.Message):
+    user_id = msg.from_user.id
+    async with aiosqlite.connect(db.DB_PATH) as conn:
+        async with conn.execute("SELECT id FROM workers WHERE tg_id=?", (user_id,)) as cur:
+            worker = await cur.fetchone()
+        if not worker:
+            return await msg.answer("❌ Siz tizimda yo‘qsiz.")
+
+        async with conn.execute("SELECT product_name FROM worker_products WHERE worker_id=?", (worker[0],)) as cur:
+            products = await cur.fetchall()
+
+    if not products:
+        await msg.answer("📭 Sizda hali mahsulotlar yo‘q.\nYangi mahsulot nomini kiriting:", reply_markup=ReplyKeyboardRemove())
+        worker_state[user_id] = "waiting_for_new_product"
+    else:
+        product_list = "\n".join([f"• {p[0]}" for p in products])
+        await msg.answer(
+            f"📦 <b>Sizning mahsulotlaringiz:</b>\n{product_list}\n\n"
+            "✏️ Yangi mahsulot qo‘shish uchun nomini yozing yoki 🧾 Hisobot yuborishni bosing.",
+            parse_mode="HTML"
+        )
+        worker_state[user_id] = "waiting_for_new_product"
+
+
+@router.message(F.text & ~F.text.in_(["🧾 Hisobot yuborish", "↩️ Menyuga qaytish"]))
+async def add_new_product(msg: types.Message):
+    user_id = msg.from_user.id
+    if worker_state.get(user_id) != "waiting_for_new_product":
+        return
+
+    new_product = msg.text.strip()
+    async with aiosqlite.connect(db.DB_PATH) as conn:
+        async with conn.execute("SELECT id FROM workers WHERE tg_id=?", (user_id,)) as cur:
+            worker = await cur.fetchone()
+        if not worker:
+            return await msg.answer("❌ Siz tizimda ro‘yxatda yo‘qsiz.")
+
+        await conn.execute(
+            "INSERT INTO worker_products (worker_id, product_name) VALUES (?, ?)",
+            (worker[0], new_product)
+        )
+        await conn.commit()
+
+    await msg.answer(f"✅ '{new_product}' mahsuloti ro‘yxatga qo‘shildi!", reply_markup=worker_menu())
+    worker_state[user_id] = None
