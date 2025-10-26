@@ -7,9 +7,7 @@ import datetime
 import aiosqlite
 
 router = Router()
-
 worker_state = {}
-
 
 # === 🧾 HISOBOT YUBORISH ===
 @router.message(F.text == "🧾 Hisobot yuborish")
@@ -31,7 +29,6 @@ async def receive_report(message: types.Message):
     async with aiosqlite.connect(db.DB_PATH) as conn:
         async with conn.execute("SELECT id, filial_id, name FROM workers WHERE tg_id=?", (message.from_user.id,)) as cur:
             worker = await cur.fetchone()
-
         if not worker:
             return await message.answer("❌ Siz tizimda ro‘yxatdan o‘tmagansiz.", reply_markup=worker_menu())
 
@@ -41,7 +38,6 @@ async def receive_report(message: types.Message):
         """, (worker[0], worker[1], message.text, datetime.datetime.now().strftime("%Y-%m-%d %H:%M")))
         await conn.commit()
 
-    # Superadminga yuboramiz
     try:
         await message.bot.send_message(
             SUPERADMIN_ID,
@@ -55,27 +51,31 @@ async def receive_report(message: types.Message):
     await message.answer("✅ Hisobot yuborildi! Rahmat 👌", reply_markup=worker_menu())
 
 
-# === ⏰ ISHNI BOSHLADIM ===
+# === ⏰ ISHNI BOSHLADIM (00:00 holatini hisoblaydi) ===
 @router.message(F.text == "⏰ Ishni boshladim")
 async def start_work(msg: types.Message):
     async with aiosqlite.connect(db.DB_PATH) as conn:
         async with conn.execute("SELECT id, filial_id, name FROM workers WHERE tg_id=?", (msg.from_user.id,)) as cur:
             worker = await cur.fetchone()
-
         if not worker:
             return await msg.answer("❌ Siz tizimda ro‘yxatdan o‘tmagansiz.", reply_markup=worker_menu())
 
         now = datetime.datetime.now()
-        hour, minute = now.hour, now.minute
+
+        # 🔹 Ish boshlash 9:00, kechasi (00:00–05:00) — yangi kun
+        if now.hour < 5:
+            await msg.answer("🌙 Siz erta tongda ishni boshladingiz. Bugungi ish vaqti yangilandi ✅")
+            return
+
         start_hour = 9
         grace_minutes = 10
-        total_minutes = hour * 60 + minute
-        start_minutes = start_hour * 60
-        late_minutes = total_minutes - (start_minutes + grace_minutes)
+        total_minutes = now.hour * 60 + now.minute
+        start_minutes = start_hour * 60 + grace_minutes
+        late_minutes = total_minutes - start_minutes
 
         worker_id, filial_id, name = worker
 
-        # Kechikkan bo‘lsa — jarima
+        # --- KECHIKISH yoki BONUS ---
         if late_minutes > 0:
             fine = int((late_minutes / 60) * 10000)
             await conn.execute("""
@@ -84,10 +84,8 @@ async def start_work(msg: types.Message):
             """, (worker_id, filial_id, f"Kechikish ({late_minutes} daqiqa)", fine, now.strftime("%Y-%m-%d %H:%M")))
             await conn.commit()
             await msg.answer(f"⚠️ Siz kech keldingiz ({late_minutes} daqiqa). Jarima: {fine:,} so‘m.")
-
-        # Erta kelgan bo‘lsa — bonus
-        elif total_minutes < start_minutes:
-            early_minutes = start_minutes - total_minutes
+        elif late_minutes < -10:
+            early_minutes = abs(late_minutes)
             bonus = int((early_minutes / 60) * 10000)
             await conn.execute("""
                 INSERT INTO bonuses (worker_id, filial_id, reason, amount, created_at)
@@ -98,6 +96,7 @@ async def start_work(msg: types.Message):
         else:
             await msg.answer("✅ Siz ishni o‘z vaqtida boshladingiz!")
 
+        # 🔹 Ish boshlanish logi
         await conn.execute("""
             CREATE TABLE IF NOT EXISTS work_start_log (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -125,7 +124,7 @@ async def start_work(msg: types.Message):
 # === 🏁 ISHNI TUGATDIM ===
 @router.message(F.text == "🏁 Ishni tugatdim")
 async def end_work(msg: types.Message):
-    await msg.answer("✅ Ishni tugatganingiz qayd etildi.\n📩 Endi yakuniy hisobotni yuboring:",
+    await msg.answer("✅ Ishni tugatganingiz qayd etildi.\n📩 Iltimos, yakuniy hisobotni yuboring:",
                      reply_markup=confirm_end_work_menu())
     worker_state[msg.from_user.id] = "waiting_for_final_button"
 
@@ -208,7 +207,6 @@ async def show_finance(msg: types.Message):
     async with aiosqlite.connect(db.DB_PATH) as conn:
         async with conn.execute("SELECT id, name FROM workers WHERE tg_id=?", (msg.from_user.id,)) as cur:
             worker = await cur.fetchone()
-
         if not worker:
             return await msg.answer("❌ Siz tizimda ro‘yxatdan o‘tmagansiz.", reply_markup=worker_menu())
 
