@@ -18,6 +18,16 @@ def safe_repair_db(file_name: str):
         conn = sqlite3.connect(file_name)
         conn.close()
         print("✅ Yangi toza baza yaratildi.")
+# --- Ishchilarning o‘z mahsulotlari (maxsus) ---
+await db.execute("""
+CREATE TABLE IF NOT EXISTS worker_products (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    worker_id INTEGER,
+    product_name TEXT,
+    created_at TEXT DEFAULT (datetime('now', 'localtime')),
+    FOREIGN KEY(worker_id) REFERENCES workers(id)
+)
+""")
 
 
 # --- Asinxron bazani yaratish ---
@@ -117,3 +127,4 @@ async def init_db(filename="data.db"):
 # --- Sync ulanish (handlerlar uchun kerak bo‘lishi mumkin) ---
 def get_conn():
     return sqlite3.connect(DB_PATH)
+
