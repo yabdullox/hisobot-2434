@@ -275,6 +275,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.filters import Command
 from aiogram.types import ReplyKeyboardRemove
 from keyboards.superadmin_kb import superadmin_menu
+from database import aget_conn
 from database import db
 import pandas as pd
 import datetime
@@ -478,75 +479,53 @@ async def delete_admin_finish(msg: types.Message, state: FSMContext):
     await state.clear()
 
 
-# --- 📅 Bugungi hisobotlar ---
-# --- 📅 Bugungi hisobotlar ---
+
+
+
+# 📅 Bugungi hisobotlar
 @router.message(F.text == "📅 Bugungi hisobotlar")
 async def today_reports(msg: types.Message):
-    if not is_superadmin(msg.from_user.id):
-        return await msg.answer("⛔️ Sizda ruxsat yo‘q.")
+    async with await aget_conn() as conn:
+        cur = await conn.execute("""
+            SELECT w.name, r.text, r.created_at
+            FROM reports r
+            JOIN workers w ON w.id = r.worker_id
+            WHERE DATE(r.created_at) = DATE('now', 'localtime')
+            ORDER BY r.created_at DESC
+        """)
+        data = await cur.fetchall()
 
-    conn = db.get_conn()
-    cur = conn.cursor()
-
-    # Sana formatini aniq olamiz
-    today = datetime.date.today().isoformat()
-
-    # Hisobotlarni olish — 3 xil bog‘lanish variantidan har biri mos kelsa ishlaydi
-    reports = cur.execute("""
-        SELECT 
-            COALESCE(f.name, '❓ Noma’lum filial') AS filial,
-            COALESCE(w.name, '👤 Noma’lum ishchi') AS ishchi,
-            COALESCE(r.text, '-') AS matn,
-            COALESCE(r.created_at, '-') AS vaqt
-        FROM reports r
-        LEFT JOIN workers w ON w.id = r.worker_id OR w.tg_id = r.worker_id
-        LEFT JOIN filials f ON f.id = r.filial_id OR f.filial_id = r.filial_id
-        WHERE DATE(r.created_at) = DATE(?)
-        ORDER BY r.id DESC
-    """, (today,)).fetchall()
-
-    if not reports:
-        return await msg.answer("📭 Bugun hech qanday hisobot kelmagan.")
+    if not data:
+        return await msg.answer("📘 Bugun hech qanday hisobot kelmagan.")
 
     text = "📅 <b>Bugungi hisobotlar:</b>\n\n"
-    for r in reports:
-        text += f"🏢 {r[0]}\n👷 {r[1]}\n🕒 {r[3]}\n🧾 {r[2]}\n\n"
+    for name, report, time in data:
+        text += f"👷 <b>{name}</b>\n🕒 {time}\n🧾 {report}\n\n"
 
     await msg.answer(text, parse_mode="HTML", reply_markup=superadmin_menu())
 
 
-# --- 📊 Umumiy hisobotlar ---
+# 📊 Umumiy hisobotlar
 @router.message(F.text == "📊 Umumiy hisobotlar")
 async def all_reports(msg: types.Message):
-    if not is_superadmin(msg.from_user.id):
-        return await msg.answer("⛔️ Sizda ruxsat yo‘q.")
+    async with await aget_conn() as conn:
+        cur = await conn.execute("""
+            SELECT w.name, r.text, r.created_at
+            FROM reports r
+            JOIN workers w ON w.id = r.worker_id
+            ORDER BY r.created_at DESC
+        """)
+        data = await cur.fetchall()
 
-    conn = db.get_conn()
-    cur = conn.cursor()
+    if not data:
+        return await msg.answer("📘 Hisobotlar mavjud emas.")
 
-    # Oxirgi 50 ta hisobotni chiqaramiz
-    reports = cur.execute("""
-        SELECT 
-            COALESCE(f.name, '❓ Noma’lum filial') AS filial,
-            COALESCE(w.name, '👤 Noma’lum ishchi') AS ishchi,
-            COALESCE(r.text, '-') AS matn,
-            COALESCE(r.created_at, '-') AS vaqt
-        FROM reports r
-        LEFT JOIN workers w ON w.id = r.worker_id OR w.tg_id = r.worker_id
-        LEFT JOIN filials f ON f.id = r.filial_id OR f.filial_id = r.filial_id
-        WHERE r.text IS NOT NULL
-        ORDER BY r.id DESC
-        LIMIT 50
-    """).fetchall()
-
-    if not reports:
-        return await msg.answer("📭 Hisobotlar mavjud emas.")
-
-    text = "📊 <b>So‘nggi 50 ta hisobot:</b>\n\n"
-    for r in reports:
-        text += f"🏢 {r[0]}\n👷 {r[1]}\n🕒 {r[3]}\n🧾 {r[2]}\n\n"
+    text = "📊 <b>Barcha hisobotlar:</b>\n\n"
+    for name, report, time in data:
+        text += f"👷 <b>{name}</b>\n🕒 {time}\n🧾 {report}\n\n"
 
     await msg.answer(text, parse_mode="HTML", reply_markup=superadmin_menu())
+
 
 
 # --- 📦 Export (Excel) ---
