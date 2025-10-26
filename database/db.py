@@ -18,26 +18,16 @@ def safe_repair_db(file_name: str):
         conn = sqlite3.connect(file_name)
         conn.close()
         print("✅ Yangi toza baza yaratildi.")
-# --- Ishchilarning o‘z mahsulotlari (maxsus) ---
-await db.execute("""
-CREATE TABLE IF NOT EXISTS worker_products (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    worker_id INTEGER,
-    product_name TEXT,
-    created_at TEXT DEFAULT (datetime('now', 'localtime')),
-    FOREIGN KEY(worker_id) REFERENCES workers(id)
-)
-""")
 
 
-# --- Asinxron bazani yaratish ---
+# --- Asinxron bazani yaratish (barcha jadvallar bilan) ---
 async def init_db(filename="data.db"):
     global DB_PATH
     DB_PATH = filename
     safe_repair_db(filename)
 
     async with aiosqlite.connect(filename) as db:
-        # 🔹 Filiallar
+        # --- Filiallar
         await db.execute("""
         CREATE TABLE IF NOT EXISTS filials (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -46,7 +36,7 @@ async def init_db(filename="data.db"):
         )
         """)
 
-        # 🔹 Adminlar
+        # --- Adminlar
         await db.execute("""
         CREATE TABLE IF NOT EXISTS admins (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -57,7 +47,7 @@ async def init_db(filename="data.db"):
         )
         """)
 
-        # 🔹 Ishchilar
+        # --- Ishchilar
         await db.execute("""
         CREATE TABLE IF NOT EXISTS workers (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -68,7 +58,7 @@ async def init_db(filename="data.db"):
         )
         """)
 
-        # 🔹 Hisobotlar
+        # --- Hisobotlar
         await db.execute("""
         CREATE TABLE IF NOT EXISTS reports (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -80,7 +70,7 @@ async def init_db(filename="data.db"):
         )
         """)
 
-        # 🔹 Bonuslar
+        # --- Bonuslar
         await db.execute("""
         CREATE TABLE IF NOT EXISTS bonuses (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -93,7 +83,7 @@ async def init_db(filename="data.db"):
         )
         """)
 
-        # 🔹 Jarimalar
+        # --- Jarimalar
         await db.execute("""
         CREATE TABLE IF NOT EXISTS fines (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -106,7 +96,7 @@ async def init_db(filename="data.db"):
         )
         """)
 
-        # 🔹 Muammolar (rasm bilan)
+        # --- Muammolar (rasm bilan)
         await db.execute("""
         CREATE TABLE IF NOT EXISTS problems (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -120,11 +110,31 @@ async def init_db(filename="data.db"):
         )
         """)
 
+        # --- Ish boshlash loglari
+        await db.execute("""
+        CREATE TABLE IF NOT EXISTS work_start_log (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            worker_id INTEGER,
+            filial_id INTEGER,
+            start_time TEXT
+        )
+        """)
+
+        # --- Ishchilar mahsulotlari (📦 Mahsulotlarim)
+        await db.execute("""
+        CREATE TABLE IF NOT EXISTS worker_products (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            worker_id INTEGER,
+            product_name TEXT,
+            created_at TEXT DEFAULT (datetime('now', 'localtime')),
+            FOREIGN KEY(worker_id) REFERENCES workers(id)
+        )
+        """)
+
         await db.commit()
         print("✅ Baza muvaffaqiyatli yaratildi va ishga tayyor!")
 
 
-# --- Sync ulanish (handlerlar uchun kerak bo‘lishi mumkin) ---
+# --- Sinxron ulanish (handlerlar uchun kerak bo‘lishi mumkin) ---
 def get_conn():
     return sqlite3.connect(DB_PATH)
-
