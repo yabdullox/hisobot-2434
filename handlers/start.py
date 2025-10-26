@@ -57,7 +57,7 @@ async def start_command(message: types.Message, state: FSMContext):
     if worker:
         await message.answer(
             "👷 Ishchi menyusiga xush kelibsiz.",
-            reply_markup=worker_menu()
+           reply_markup = worker_menu
         )
         return
 
@@ -66,3 +66,4 @@ async def start_command(message: types.Message, state: FSMContext):
         "⛔ Siz tizimda ro‘yxatdan o‘tmagansiz.\n"
         "Iltimos, SuperAdmin bilan bog‘laning."
     )
+
