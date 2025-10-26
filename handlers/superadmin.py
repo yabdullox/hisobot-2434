@@ -479,20 +479,28 @@ async def delete_admin_finish(msg: types.Message, state: FSMContext):
 
 
 # --- 📅 Bugungi hisobotlar ---
+# --- 📅 Bugungi hisobotlar ---
 @router.message(F.text == "📅 Bugungi hisobotlar")
 async def today_reports(msg: types.Message):
     if not is_superadmin(msg.from_user.id):
         return await msg.answer("⛔️ Sizda ruxsat yo‘q.")
 
-    today = datetime.date.today().isoformat()
     conn = db.get_conn()
     cur = conn.cursor()
 
+    # Sana formatini aniq olamiz
+    today = datetime.date.today().isoformat()
+
+    # Hisobotlarni olish — 3 xil bog‘lanish variantidan har biri mos kelsa ishlaydi
     reports = cur.execute("""
-        SELECT f.name, w.name, r.text, r.created_at
+        SELECT 
+            COALESCE(f.name, '❓ Noma’lum filial') AS filial,
+            COALESCE(w.name, '👤 Noma’lum ishchi') AS ishchi,
+            COALESCE(r.text, '-') AS matn,
+            COALESCE(r.created_at, '-') AS vaqt
         FROM reports r
-        JOIN workers w ON w.id = r.worker_id
-        JOIN filials f ON f.id = r.filial_id
+        LEFT JOIN workers w ON w.id = r.worker_id OR w.tg_id = r.worker_id
+        LEFT JOIN filials f ON f.id = r.filial_id OR f.filial_id = r.filial_id
         WHERE DATE(r.created_at) = DATE(?)
         ORDER BY r.id DESC
     """, (today,)).fetchall()
@@ -504,7 +512,8 @@ async def today_reports(msg: types.Message):
     for r in reports:
         text += f"🏢 {r[0]}\n👷 {r[1]}\n🕒 {r[3]}\n🧾 {r[2]}\n\n"
 
-    await msg.answer(text, parse_mode="HTML")
+    await msg.answer(text, parse_mode="HTML", reply_markup=superadmin_menu())
+
 
 # --- 📊 Umumiy hisobotlar ---
 @router.message(F.text == "📊 Umumiy hisobotlar")
@@ -515,12 +524,16 @@ async def all_reports(msg: types.Message):
     conn = db.get_conn()
     cur = conn.cursor()
 
-    # Barcha hisobotlarni 50 tagacha chiqaramiz (yangi birinchida)
+    # Oxirgi 50 ta hisobotni chiqaramiz
     reports = cur.execute("""
-        SELECT f.name, w.name, r.text, r.created_at
+        SELECT 
+            COALESCE(f.name, '❓ Noma’lum filial') AS filial,
+            COALESCE(w.name, '👤 Noma’lum ishchi') AS ishchi,
+            COALESCE(r.text, '-') AS matn,
+            COALESCE(r.created_at, '-') AS vaqt
         FROM reports r
-        JOIN workers w ON w.id = r.worker_id
-        JOIN filials f ON f.id = r.filial_id
+        LEFT JOIN workers w ON w.id = r.worker_id OR w.tg_id = r.worker_id
+        LEFT JOIN filials f ON f.id = r.filial_id OR f.filial_id = r.filial_id
         WHERE r.text IS NOT NULL
         ORDER BY r.id DESC
         LIMIT 50
@@ -531,10 +544,7 @@ async def all_reports(msg: types.Message):
 
     text = "📊 <b>So‘nggi 50 ta hisobot:</b>\n\n"
     for r in reports:
-        filial = r[0] if r[0] else "❓Noma’lum filial"
-        worker = r[1] if r[1] else "👤 Noma’lum ishchi"
-        created = r[3] if r[3] else "🕒 Sana kiritilmagan"
-        text += f"🏢 {filial}\n👷 {worker}\n🕒 {created}\n🧾 {r[2]}\n\n"
+        text += f"🏢 {r[0]}\n👷 {r[1]}\n🕒 {r[3]}\n🧾 {r[2]}\n\n"
 
     await msg.answer(text, parse_mode="HTML", reply_markup=superadmin_menu())
 
