@@ -182,110 +182,116 @@
 # @router.message(F.text == "↩️ Menyuga qaytish")
 # async def back_to_menu(msg: types.Message):
 #     await msg.answer("👷 Ishchi menyusi:", reply_markup=worker_menu())
-
-
 from aiogram import Router, F, types
 from aiogram.types import ReplyKeyboardRemove
 from keyboards.worker_kb import worker_menu
-from database import db
 from config import SUPERADMIN_ID
+from database import db
 import datetime
 
 router = Router()
 
+# Ishchi holati
+worker_state = {}
 
-# 🧾 HISOBOT YUBORISH (boshlanishi)
+# 🧾 HISOBOT yuborish
 @router.message(F.text == "🧾 Hisobot yuborish")
-async def send_report_prompt(message: types.Message):
-    await message.answer(
-        "📤 Iltimos, hisobot matnini yuboring.\n\nMasalan:\n<b>Bugun 5 ta mijoz, 3 ta tozalash, 1 muammo.</b>",
-        parse_mode="HTML",
-        reply_markup=ReplyKeyboardRemove()
-    )
+async def ask_report(msg: types.Message):
+    await msg.answer("✏️ Hisobotingizni kiriting:", reply_markup=ReplyKeyboardRemove())
+    worker_state[msg.from_user.id] = "waiting_for_report"
 
 
-# 🧾 HISOBOTNI QABUL QILISH
-@router.message(F.text & ~F.text.in_(["🧾 Hisobot yuborish", "⏰ Ishni boshladim", "🐝 Bonus/Jarimalarim", "🔙 Menyuga qaytish",
-                                      "📷 Tozalash rasmi yuborish", "📷 Muammo rasmi yuborish"]))
-async def receive_report(message: types.Message):
-    report_text = message.text.strip()
+@router.message(F.text & ~F.text.in_(["🧾 Hisobot yuborish", "⏰ Ishni boshladim", "🏁 Ishni tugatdim"]))
+async def save_report(msg: types.Message):
+    if worker_state.get(msg.from_user.id) != "waiting_for_report":
+        return
 
+    text = msg.text.strip()
     conn = db.get_conn()
     cur = conn.cursor()
 
-    # Ishchini bazadan topamiz
-    worker = cur.execute("SELECT id, filial_id FROM workers WHERE tg_id=?", (message.from_user.id,)).fetchone()
-
+    worker = cur.execute("SELECT id, filial_id FROM workers WHERE tg_id=?", (msg.from_user.id,)).fetchone()
     if not worker:
-        return await message.answer("❌ Siz tizimda ro‘yxatdan o‘tmagansiz.")
+        return await msg.answer("❌ Siz tizimda ro‘yxatdan o‘tmagansiz.")
 
-    # Hisobotni bazaga yozamiz
     now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    cur.execute(
-        "INSERT INTO reports (worker_id, filial_id, text, created_at) VALUES (?, ?, ?, ?)",
-        (worker[0], worker[1], report_text, now)
-    )
+    cur.execute("INSERT INTO reports (worker_id, filial_id, text, created_at) VALUES (?, ?, ?, ?)",
+                (worker[0], worker[1], text, now))
     conn.commit()
     conn.close()
 
-    # Superadminga yuboramiz
+    worker_state[msg.from_user.id] = None
+
+    # SuperAdmin’ga yuborish
     try:
-        await message.bot.send_message(
+        await msg.bot.send_message(
             SUPERADMIN_ID,
-            f"📩 <b>Yangi hisobot</b>\n👷‍♂️ Ishchi: {message.from_user.full_name}\n🆔 <code>{message.from_user.id}</code>\n\n🧾 {report_text}",
+            f"📩 <b>Yangi hisobot:</b>\n👷 {msg.from_user.full_name}\n🕒 {now}\n🧾 {text}",
             parse_mode="HTML"
         )
     except Exception as e:
-        print(f"⚠️ Superadminga hisobot yuborishda xato: {e}")
+        print("⚠️ Superadminga yuborilmadi:", e)
 
-    await message.answer("✅ Hisobot yuborildi! Rahmat 👌", reply_markup=worker_menu())
+    await msg.answer("✅ Hisobotingiz qabul qilindi.", reply_markup=worker_menu())
 
 
 # ⏰ ISHNI BOSHLADIM
 @router.message(F.text == "⏰ Ishni boshladim")
-async def start_work(message: types.Message):
-    await message.answer("✅ Siz ishni boshladingiz 💪", reply_markup=worker_menu)
-    try:
-        await message.bot.send_message(
-            SUPERADMIN_ID,
-            f"🕒 Ishchi ishni boshladi:\n👷‍♂️ {message.from_user.full_name}\n🆔 <code>{message.from_user.id}</code>",
-            parse_mode="HTML"
-        )
-    except Exception as e:
-        print(f"⚠️ Ish boshlash haqida yuborishda xato: {e}")
+async def start_work(msg: types.Message):
+    user_id = msg.from_user.id
+    now = datetime.datetime.now()
+    hour, minute = now.hour, now.minute
+
+    # 9:00 ni solishtirish
+    start_hour = 9
+    grace_minutes = 10  # 9:10 gacha kechikishsiz
+    total_minutes = hour * 60 + minute
+    base_minutes = start_hour * 60
+
+    conn = db.get_conn()
+    cur = conn.cursor()
+    worker = cur.execute("SELECT id, filial_id FROM workers WHERE tg_id=?", (user_id,)).fetchone()
+    if not worker:
+        return await msg.answer("❌ Siz tizimda ro‘yxatdan o‘tmagansiz.")
+
+    # Bonus yoki jarima hisoblash
+    diff = total_minutes - base_minutes
+
+    if diff > grace_minutes:
+        # kechikish
+        soat = diff / 60
+        fine = int(soat * 10000)
+        cur.execute("""
+            INSERT INTO fines (worker_id, filial_id, reason, amount, created_at)
+            VALUES (?, ?, ?, ?, ?)
+        """, (worker[0], worker[1], f"Kechikish ({diff} daqiqa)", fine, now.strftime("%Y-%m-%d %H:%M")))
+        await msg.answer(f"⚠️ Siz {diff} daqiqa kechikdingiz.\nJarima: {fine:,} so‘m.")
+    elif diff < 0:
+        # ertaroq kelish
+        early = abs(diff)
+        soat = early / 60
+        bonus = int(soat * 10000)
+        cur.execute("""
+            INSERT INTO bonuses (worker_id, filial_id, reason, amount, created_at)
+            VALUES (?, ?, ?, ?, ?)
+        """, (worker[0], worker[1], f"Erta kelgan ({early} daqiqa)", bonus, now.strftime("%Y-%m-%d %H:%M")))
+        await msg.answer(f"🎉 Siz {early} daqiqa ertaroq keldingiz!\nBonus: +{bonus:,} so‘m.")
+    else:
+        await msg.answer("✅ Siz ishni o‘z vaqtida boshladingiz!")
+
+    conn.commit()
+    conn.close()
+
+    worker_state[user_id] = "working"
+    await msg.answer("🕒 Ish boshlanishi qayd etildi.\n\nTugatgach “🏁 Ishni tugatdim” tugmasini bosing.")
 
 
-# 📷 TOZALASH RASMI YUBORISH
-@router.message(F.text == "📷 Tozalash rasmi yuborish")
-async def send_clean_photo_instruction(message: types.Message):
-    await message.answer("📸 Iltimos, tozalash jarayoni rasmini yuboring:", reply_markup=ReplyKeyboardRemove())
+# 🏁 ISHNI TUGATDIM
+@router.message(F.text == "🏁 Ishni tugatdim")
+async def end_work(msg: types.Message):
+    if worker_state.get(msg.from_user.id) != "working":
+        return await msg.answer("❗ Siz hali ishni boshlamagan bo‘lishingiz mumkin.")
 
-
-# 📷 RASMLARNI QABUL QILISH (tozalash / muammo)
-@router.message(F.photo)
-async def receive_photo(message: types.Message):
-    try:
-        file_id = message.photo[-1].file_id
-        if message.caption:
-            caption = f"🚨 <b>Muammo rasmi:</b>\n👷‍♂️ {message.from_user.full_name}\n🆔 <code>{message.from_user.id}</code>\n📝 {message.caption}"
-        else:
-            caption = f"🧹 <b>Tozalash rasmi:</b>\n👷‍♂️ {message.from_user.full_name}\n🆔 <code>{message.from_user.id}</code>"
-
-        await message.bot.send_photo(SUPERADMIN_ID, photo=file_id, caption=caption, parse_mode="HTML")
-        await message.answer("✅ Rasm yuborildi!", reply_markup=worker_menu())
-    except Exception as e:
-        print(f"⚠️ Rasmni yuborishda xato: {e}")
-        await message.answer("❌ Rasm yuborishda xatolik yuz berdi.", reply_markup=worker_menu())
-
-
-# 💸 BONUS / JARIMALARIM
-@router.message(F.text == "🐝 Bonus/Jarimalarim")
-async def bonus_info(message: types.Message):
-    await message.answer("💸 Sizda hozircha bonus yoki jarimalar mavjud emas.", reply_markup=worker_menu())
-
-
-# 🔙 MENYUGA QAYTISH
-@router.message(F.text == "🔙 Menyuga qaytish")
-async def back_to_menu(message: types.Message):
-    await message.answer("🔄 Asosiy menyuga qaytdingiz.", reply_markup=worker_menu())
+    worker_state[msg.from_user.id] = None
+    await msg.answer("✅ Ish tugatildi!\n\nEndi 🧾 <b>Hisobot yuboring</b> tugmasini bosing.", parse_mode="HTML")
 
