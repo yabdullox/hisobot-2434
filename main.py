@@ -36,6 +36,7 @@ bot = Bot(
 storage = MemoryStorage()
 dp = Dispatcher(storage=storage)
 
+await db.init_db()  # bazani yaratadi
 
 async def start_web_server(port: int):
     async def handle_root(request):
@@ -77,3 +78,4 @@ if __name__ == "__main__":
         asyncio.run(main())
     except (KeyboardInterrupt, SystemExit):
         logger.info("🛑 Bot to‘xtatildi.")
+
