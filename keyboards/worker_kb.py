@@ -18,10 +18,11 @@ def worker_menu():
             KeyboardButton(text="📸 Muammo yuborish")
         ],
         [
-            KeyboardButton(text="📅 Bugungi hisobotlarim"),
-            KeyboardButton(text="💰 Bonus/Jarimalarim")
+            KeyboardButton(text="📦 Mahsulotlarim"),  # 🆕 YANGI TUGMA
+            KeyboardButton(text="📅 Bugungi hisobotlarim")
         ],
         [
+            KeyboardButton(text="💰 Bonus/Jarimalarim"),
             KeyboardButton(text="↩️ Menyuga qaytish")
         ]
     ]
