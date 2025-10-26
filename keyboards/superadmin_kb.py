@@ -1,10 +1,11 @@
-from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
+from telegram import ReplyKeyboardMarkup, KeyboardButton
 
 def superadmin_menu():
     kb = [
-        [KeyboardButton(text="🏢 Filiallar ro‘yxati"), KeyboardButton(text="➕ Filial qo‘shish")],
-        [KeyboardButton(text="❌ Filialni o‘chirish"), KeyboardButton(text="👥 Adminlar ro‘yxati")],
-        [KeyboardButton(text="📅 Bugungi hisobotlar"), KeyboardButton(text="📊 Umumiy hisobotlar")],
-        [KeyboardButton(text="📦 Export (Excel)"), KeyboardButton(text="⚠️ Muammolar ro‘yxati")],
+        [KeyboardButton("🏢 Filiallar ro‘yxati"), KeyboardButton("➕ Filial qo‘shish")],
+        [KeyboardButton("❌ Filialni o‘chirish"), KeyboardButton("👥 Adminlar ro‘yxati")],
+        [KeyboardButton("➕ Admin qo‘shish")],  # ✅ yangi tugma qo‘shildi
+        [KeyboardButton("📅 Bugungi hisobotlar"), KeyboardButton("📊 Umumiy hisobotlar")],
+        [KeyboardButton("📦 Export (Excel)"), KeyboardButton("⚠️ Muammolar ro‘yxati")]
     ]
-    return ReplyKeyboardMarkup(keyboard=kb, resize_keyboard=True)
+    return ReplyKeyboardMarkup(kb, resize_keyboard=True)
