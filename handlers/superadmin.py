@@ -482,9 +482,9 @@ async def delete_admin_finish(msg: types.Message, state: FSMContext):
 @router.message(F.text == "📅 Bugungi hisobotlar")
 async def today_reports(msg: types.Message):
     if not is_superadmin(msg.from_user.id):
-        return await msg.answer("⛔ Sizda ruxsat yo‘q.")
+        return await msg.answer("⛔️ Sizda ruxsat yo‘q.")
 
-    today = datetime.date.today().strftime("%Y-%m-%d")
+    today = datetime.date.today().isoformat()
     conn = db.get_conn()
     cur = conn.cursor()
 
@@ -492,10 +492,10 @@ async def today_reports(msg: types.Message):
         SELECT f.name, w.name, r.text, r.created_at
         FROM reports r
         JOIN workers w ON w.id = r.worker_id
-        JOIN filials f ON f.filial_id = r.filial_id
-        WHERE r.created_at LIKE ?
+        JOIN filials f ON f.id = r.filial_id
+        WHERE DATE(r.created_at) = DATE(?)
         ORDER BY r.id DESC
-    """, (f"{today}%",)).fetchall()
+    """, (today,)).fetchall()
 
     if not reports:
         return await msg.answer("📭 Bugun hech qanday hisobot kelmagan.")
@@ -507,31 +507,38 @@ async def today_reports(msg: types.Message):
     await msg.answer(text, parse_mode="HTML")
 
 
+
 # --- 📊 Umumiy hisobotlar ---
 @router.message(F.text == "📊 Umumiy hisobotlar")
 async def all_reports(msg: types.Message):
     if not is_superadmin(msg.from_user.id):
-        return await msg.answer("⛔ Sizda ruxsat yo‘q.")
+        return await msg.answer("⛔️ Sizda ruxsat yo‘q.")
 
     conn = db.get_conn()
     cur = conn.cursor()
 
+    # Barcha hisobotlarni 50 tagacha chiqaramiz (yangi birinchida)
     reports = cur.execute("""
         SELECT f.name, w.name, r.text, r.created_at
         FROM reports r
         JOIN workers w ON w.id = r.worker_id
-        JOIN filials f ON f.filial_id = r.filial_id
-        ORDER BY r.id DESC LIMIT 30
+        JOIN filials f ON f.id = r.filial_id
+        WHERE r.text IS NOT NULL
+        ORDER BY r.id DESC
+        LIMIT 50
     """).fetchall()
 
     if not reports:
         return await msg.answer("📭 Hisobotlar mavjud emas.")
 
-    text = "📊 <b>So‘nggi 30 ta hisobot:</b>\n\n"
+    text = "📊 <b>So‘nggi 50 ta hisobot:</b>\n\n"
     for r in reports:
-        text += f"🏢 {r[0]}\n👷 {r[1]}\n🕒 {r[3]}\n🧾 {r[2]}\n\n"
+        filial = r[0] if r[0] else "❓Noma’lum filial"
+        worker = r[1] if r[1] else "👤 Noma’lum ishchi"
+        created = r[3] if r[3] else "🕒 Sana kiritilmagan"
+        text += f"🏢 {filial}\n👷 {worker}\n🕒 {created}\n🧾 {r[2]}\n\n"
 
-    await msg.answer(text, parse_mode="HTML")
+    await msg.answer(text, parse_mode="HTML", reply_markup=superadmin_menu())
 
 
 # --- 📦 Export (Excel) ---
