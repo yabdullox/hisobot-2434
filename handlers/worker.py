@@ -8,50 +8,105 @@ import aiosqlite
 
 router = Router()
 worker_state = {}
+worker_data = {}
 
-# === 🧾 HISOBOT YUBORISH ===
+# === 🧾 HISOBOT YUBORISH (YANGI AVTOMAT TIZIM) ===
 @router.message(F.text == "🧾 Hisobot yuborish")
-async def send_report_prompt(message: types.Message):
+async def start_report(message: types.Message):
     await message.answer(
-        "📤 Iltimos, bugungi ish hisobotini yuboring.\nMasalan: 'Bugun 5 ta mijoz, 3 ta tozalash, 1 muammo.'",
+        "📤 Iltimos, bugungi ish hisobotini yozing.\n"
+        "Masalan: 'Bugun 5 ta mijoz, 3 ta tozalash, 1 muammo.'",
         reply_markup=ReplyKeyboardRemove()
     )
-    worker_state[message.from_user.id] = "waiting_for_report"
+    worker_state[message.from_user.id] = "waiting_for_main_report"
+    worker_data[message.from_user.id] = {}
 
 
-@router.message(F.text & ~F.text.in_(["⏰ Ishni boshladim", "🏁 Ishni tugatdim", "📷 Tozalash rasmi yuborish",
-                                      "📸 Muammo yuborish", "💰 Bonus/Jarimalarim", "📅 Bugungi hisobotlarim",
-                                      "↩️ Menyuga qaytish"]))
-async def receive_report(message: types.Message):
-    if worker_state.get(message.from_user.id) != "waiting_for_report":
-        return
+@router.message(F.text)
+async def handle_report_steps(message: types.Message):
+    user_id = message.from_user.id
+    state = worker_state.get(user_id)
 
-    async with aiosqlite.connect(db.DB_PATH) as conn:
-        async with conn.execute("SELECT id, filial_id, name FROM workers WHERE tg_id=?", (message.from_user.id,)) as cur:
-            worker = await cur.fetchone()
-        if not worker:
-            return await message.answer("❌ Siz tizimda ro‘yxatdan o‘tmagansiz.", reply_markup=worker_menu())
+    # --- 1️⃣ Asosiy hisobot matni ---
+    if state == "waiting_for_main_report":
+        worker_data[user_id]["main_report"] = message.text
+        worker_state[user_id] = "waiting_for_sales_sum"
+        return await message.answer("💵 Bugungi umumiy savdo summasini kiriting (so‘mda):")
 
-        await conn.execute("""
-            INSERT INTO reports (worker_id, filial_id, text, created_at)
-            VALUES (?, ?, ?, ?)
-        """, (worker[0], worker[1], message.text, datetime.datetime.now().strftime("%Y-%m-%d %H:%M")))
-        await conn.commit()
+    # --- 2️⃣ Savdo summasi ---
+    elif state == "waiting_for_sales_sum":
+        try:
+            amount = int(message.text.replace(" ", ""))
+            worker_data[user_id]["sales_sum"] = amount
+        except ValueError:
+            return await message.answer("❌ Faqat raqam kiriting. Masalan: 850000")
 
-    try:
-        await message.bot.send_message(
-            SUPERADMIN_ID,
-            f"📩 <b>Yangi hisobot</b>\n👷 Ishchi: {worker[2]}\n🆔 {message.from_user.id}\n📍 Filial ID: {worker[1]}\n\n🧾 {message.text}",
-            parse_mode="HTML"
-        )
-    except Exception as e:
-        print(f"⚠️ Superadminga hisobot yuborishda xato: {e}")
+        worker_state[user_id] = "waiting_for_products"
+        return await message.answer("🧺 Bugun nimalar sotdingiz?\n(Masalan: Johori, Kiyim, Krossovka...)")
 
-    worker_state[message.from_user.id] = None
-    await message.answer("✅ Hisobot yuborildi! Rahmat 👌", reply_markup=worker_menu())
+    # --- 3️⃣ Sotilgan mahsulotlar ro‘yxati ---
+    elif state == "waiting_for_products":
+        products = [p.strip() for p in message.text.split(",") if p.strip()]
+        worker_data[user_id]["products"] = products
+        worker_data[user_id]["quantities"] = {}
+        worker_state[user_id] = f"waiting_for_quantity_{products[0]}"
+        return await message.answer(f"📦 '{products[0]}' dan qancha sotdingiz? (Masalan: 18kg yoki 5 dona)")
+
+    # --- 4️⃣ Har bir mahsulot miqdorini ketma-ket so‘rash ---
+    elif state and state.startswith("waiting_for_quantity_"):
+        product = state.replace("waiting_for_quantity_", "")
+        worker_data[user_id]["quantities"][product] = message.text
+
+        products = worker_data[user_id]["products"]
+        current_index = products.index(product)
+
+        if current_index + 1 < len(products):
+            next_product = products[current_index + 1]
+            worker_state[user_id] = f"waiting_for_quantity_{next_product}"
+            return await message.answer(f"📦 '{next_product}' dan qancha sotdingiz?")
+        else:
+            worker_state[user_id] = "ready_to_submit"
+            return await message.answer("✅ Rahmat! Hisobot tayyor. Yuborish uchun '✅ Tasdiqlash' deb yozing.")
+
+    # --- 5️⃣ Yakuniy tasdiqlash ---
+    elif state == "ready_to_submit" and message.text.lower() in ["✅ tasdiqlash", "tasdiqlash", "ok", "ha"]:
+        async with aiosqlite.connect(db.DB_PATH) as conn:
+            async with conn.execute("SELECT id, filial_id, name FROM workers WHERE tg_id=?", (user_id,)) as cur:
+                worker = await cur.fetchone()
+            if not worker:
+                return await message.answer("❌ Siz tizimda ro‘yxatdan o‘tmagansiz.", reply_markup=worker_menu())
+
+            full_report = (
+                f"📊 <b>Yangi hisobot</b>\n"
+                f"👷 Ishchi: {worker[2]}\n"
+                f"🆔 {user_id}\n"
+                f"📍 Filial ID: {worker[1]}\n"
+                f"🧾 Hisobot: {worker_data[user_id]['main_report']}\n\n"
+                f"💵 Savdo summasi: {worker_data[user_id]['sales_sum']:,} so‘m\n"
+                f"🧺 Sotilgan mahsulotlar:\n"
+            )
+            for p, q in worker_data[user_id]["quantities"].items():
+                full_report += f"  • {p}: {q}\n"
+
+            full_report += f"\n🕒 {datetime.datetime.now().strftime('%Y-%m-%d %H:%M')}"
+
+            await conn.execute("""
+                INSERT INTO reports (worker_id, filial_id, text, created_at)
+                VALUES (?, ?, ?, ?)
+            """, (worker[0], worker[1], full_report, datetime.datetime.now().strftime("%Y-%m-%d %H:%M")))
+            await conn.commit()
+
+        try:
+            await message.bot.send_message(SUPERADMIN_ID, full_report, parse_mode="HTML")
+        except Exception as e:
+            print(f"⚠️ Hisobotni superadminga yuborishda xato: {e}")
+
+        worker_state[user_id] = None
+        worker_data[user_id] = {}
+        return await message.answer("✅ Hisobot yuborildi! Rahmat 👏", reply_markup=worker_menu())
 
 
-# === ⏰ ISHNI BOSHLADIM (00:00 holatini hisoblaydi) ===
+# === ⏰ ISHNI BOSHLADIM ===
 @router.message(F.text == "⏰ Ishni boshladim")
 async def start_work(msg: types.Message):
     async with aiosqlite.connect(db.DB_PATH) as conn:
@@ -61,8 +116,6 @@ async def start_work(msg: types.Message):
             return await msg.answer("❌ Siz tizimda ro‘yxatdan o‘tmagansiz.", reply_markup=worker_menu())
 
         now = datetime.datetime.now()
-
-        # 🔹 Ish boshlash 9:00, kechasi (00:00–05:00) — yangi kun
         if now.hour < 5:
             await msg.answer("🌙 Siz erta tongda ishni boshladingiz. Bugungi ish vaqti yangilandi ✅")
             return
@@ -75,14 +128,12 @@ async def start_work(msg: types.Message):
 
         worker_id, filial_id, name = worker
 
-        # --- KECHIKISH yoki BONUS ---
         if late_minutes > 0:
             fine = int((late_minutes / 60) * 10000)
             await conn.execute("""
                 INSERT INTO fines (worker_id, filial_id, reason, amount, created_at)
                 VALUES (?, ?, ?, ?, ?)
             """, (worker_id, filial_id, f"Kechikish ({late_minutes} daqiqa)", fine, now.strftime("%Y-%m-%d %H:%M")))
-            await conn.commit()
             await msg.answer(f"⚠️ Siz kech keldingiz ({late_minutes} daqiqa). Jarima: {fine:,} so‘m.")
         elif late_minutes < -10:
             early_minutes = abs(late_minutes)
@@ -91,12 +142,10 @@ async def start_work(msg: types.Message):
                 INSERT INTO bonuses (worker_id, filial_id, reason, amount, created_at)
                 VALUES (?, ?, ?, ?, ?)
             """, (worker_id, filial_id, f"Erta kelgan ({early_minutes} daqiqa)", bonus, now.strftime("%Y-%m-%d %H:%M")))
-            await conn.commit()
             await msg.answer(f"🎉 Siz ertaroq keldingiz! Bonus: +{bonus:,} so‘m.")
         else:
             await msg.answer("✅ Siz ishni o‘z vaqtida boshladingiz!")
 
-        # 🔹 Ish boshlanish logi
         await conn.execute("""
             CREATE TABLE IF NOT EXISTS work_start_log (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -124,7 +173,7 @@ async def start_work(msg: types.Message):
 # === 🏁 ISHNI TUGATDIM ===
 @router.message(F.text == "🏁 Ishni tugatdim")
 async def end_work(msg: types.Message):
-    await msg.answer("✅ Ishni tugatganingiz qayd etildi.\n📩 Iltimos, yakuniy hisobotni yuboring:",
+    await msg.answer("✅ Ishni tugatganingiz qayd etildi.\n📩 Endi yakuniy hisobotni yuboring:",
                      reply_markup=confirm_end_work_menu())
     worker_state[msg.from_user.id] = "waiting_for_final_button"
 
@@ -132,8 +181,7 @@ async def end_work(msg: types.Message):
 # === 📤 YAKUNIY HISOBOT ===
 @router.message(F.text == "📤 Yakuniy hisobotni yuborish")
 async def ask_final_report_text(msg: types.Message):
-    await msg.answer("✏️ Iltimos, bugungi yakuniy hisobotni yozing.",
-                     reply_markup=ReplyKeyboardRemove())
+    await msg.answer("✏️ Iltimos, bugungi yakuniy hisobotni yozing.", reply_markup=ReplyKeyboardRemove())
     worker_state[msg.from_user.id] = "waiting_for_final_report_text"
 
 
@@ -186,9 +234,7 @@ async def receive_photo(msg: types.Message):
         async with conn.execute("SELECT name FROM workers WHERE tg_id=?", (msg.from_user.id,)) as cur:
             worker = await cur.fetchone()
 
-    await msg.bot.send_photo(SUPERADMIN_ID, photo=file_id,
-                             caption=f"{caption}\n👷 {worker[0]}\n🆔 {msg.from_user.id}")
-
+    await msg.bot.send_photo(SUPERADMIN_ID, photo=file_id, caption=f"{caption}\n👷 {worker[0]}\n🆔 {msg.from_user.id}")
     worker_state[msg.from_user.id] = None
     await msg.answer("✅ Rasm yuborildi!", reply_markup=worker_menu())
 
@@ -196,8 +242,7 @@ async def receive_photo(msg: types.Message):
 # === 📸 MUAMMO YUBORISH ===
 @router.message(F.text == "📸 Muammo yuborish")
 async def ask_problem_photo(msg: types.Message):
-    await msg.answer("📸 Muammo rasmini yuboring (captionda izoh yozing):",
-                     reply_markup=ReplyKeyboardRemove())
+    await msg.answer("📸 Muammo rasmini yuboring (captionda izoh yozing):", reply_markup=ReplyKeyboardRemove())
     worker_state[msg.from_user.id] = "waiting_for_problem_photo"
 
 
@@ -242,6 +287,5 @@ async def show_today_reports(msg: types.Message):
     if not reports:
         return await msg.answer("📭 Bugun hech qanday hisobot kelmagan.", reply_markup=worker_menu())
 
-    text = "🗓 <b>Bugungi hisobotlaringiz:</b>\n\n" + "\n".join(
-        [f"🕒 {r[1]} — {r[0]}" for r in reports])
+    text = "🗓 <b>Bugungi hisobotlaringiz:</b>\n\n" + "\n".join([f"🕒 {r[1]} — {r[0]}" for r in reports])
     await msg.answer(text, parse_mode="HTML", reply_markup=worker_menu())
