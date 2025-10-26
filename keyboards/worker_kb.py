@@ -1,10 +1,9 @@
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 
-
-# === ASOSIY ISHCHI MENYU ===
+# === 🏠 ASOSIY ISHCHI MENYU ===
 def worker_menu():
     """
-    👷 Ishchilar uchun asosiy menyu
+    👷 Ishchilar uchun asosiy menyu (ishchi paneli)
     """
     kb = [
         [
@@ -34,13 +33,13 @@ def worker_menu():
     )
 
 
-# === HISOBOT YUBORISH BOSHLANG'ICH MENYU ===
+# === 📤 HISOBOT YUBORISH MENYUSI ===
 def report_menu():
     """
-    📤 Hisobot yuborish boshlanganida chiqadigan klaviatura
+    📤 Hisobot yuborish jarayonida chiqadigan menyu
     """
     kb = [
-        [KeyboardButton(text="✅ Yuborish"), KeyboardButton(text="🔙 Bekor qilish")]
+        [KeyboardButton(text="✅ Hisobotni yuborish"), KeyboardButton(text="❌ Bekor qilish")]
     ]
     return ReplyKeyboardMarkup(
         keyboard=kb,
@@ -50,99 +49,118 @@ def report_menu():
     )
 
 
-# === ISHNI BOSHLAGANDAN KEYINGI MENYU ===
+# === 🕒 ISHNI BOSHLASH MENYUSI ===
 def start_work_menu():
     """
-    ⏰ Ishni boshlashdan keyingi variantlar
+    ⏰ Ishni boshlashdan keyin paydo bo‘ladigan menyu
     """
     kb = [
-        [KeyboardButton(text="📷 Tozalash rasmi yuborish"), KeyboardButton(text="📸 Muammo yuborish")],
+        [KeyboardButton(text="📷 Tozalash rasmi yuborish")],
         [KeyboardButton(text="🏁 Ishni tugatdim")],
-        [KeyboardButton(text="🔙 Menyuga qaytish")]
+        [KeyboardButton(text="↩️ Menyuga qaytish")]
     ]
     return ReplyKeyboardMarkup(
         keyboard=kb,
         resize_keyboard=True,
-        one_time_keyboard=True,
-        input_field_placeholder="Ish jarayonidagi variantlardan birini tanlang 👇"
+        one_time_keyboard=False,
+        input_field_placeholder="Ish faoliyatingizni davom eting 👇"
     )
 
 
-# === ISHNI TUGATISH (YAKUNIY) MENYU ===
+# === 🏁 ISHNI TUGATISH (YAKUNIY HISOBOT) MENYUSI ===
 def confirm_end_work_menu():
     """
-    🏁 Ishni tugatgandan keyin — yakuniy hisobot so‘rashi uchun
+    🏁 Ishni tugatgandan keyin chiqadigan yakuniy menyu
     """
     kb = [
         [KeyboardButton(text="📤 Yakuniy hisobotni yuborish")],
-        [KeyboardButton(text="🔙 Menyuga qaytish")]
+        [KeyboardButton(text="↩️ Menyuga qaytish")]
     ]
     return ReplyKeyboardMarkup(
         keyboard=kb,
         resize_keyboard=True,
-        one_time_keyboard=True,
+        one_time_keyboard=False,
         input_field_placeholder="Ish yakunini tasdiqlang 👇"
     )
 
 
-# === MUAMMO YUBORISH (RASMLI) MENYU ===
+# === 📸 MUAMMO YUBORISH MENYUSI ===
 def problem_menu():
     """
-    ⚠️ Muammo yuborish paytida chiqadigan menyu
+    ⚠️ Muammo yuborish jarayonida chiqadigan menyu
     """
     kb = [
         [KeyboardButton(text="📸 Rasm yuborish"), KeyboardButton(text="📝 Izoh yozish")],
-        [KeyboardButton(text="🔙 Bekor qilish")]
+        [KeyboardButton(text="❌ Bekor qilish")]
     ]
     return ReplyKeyboardMarkup(
         keyboard=kb,
         resize_keyboard=True,
         one_time_keyboard=True,
-        input_field_placeholder="Muammoni yozing yoki rasm yuboring..."
+        input_field_placeholder="Muammoni tavsiflab yuboring..."
     )
 
 
-# === BONUS/JARIMALAR KO‘RISH MENYUSI ===
+# === 💰 BONUS/JARIMALAR MENYUSI ===
 def finance_menu():
     """
-    💰 Bonus va jarimalar sahifasi
+    💰 Bonus va jarimalarni ko‘rish uchun menyu
     """
     kb = [
-        [KeyboardButton(text="📊 Bonuslarim"), KeyboardButton(text="⚠️ Jarimalarim")],
-        [KeyboardButton(text="🔙 Menyuga qaytish")]
+        [KeyboardButton(text="🎉 Bonuslarim"), KeyboardButton(text="⚠️ Jarimalarim")],
+        [KeyboardButton(text="↩️ Menyuga qaytish")]
     ]
     return ReplyKeyboardMarkup(
         keyboard=kb,
         resize_keyboard=True,
-        one_time_keyboard=True
+        one_time_keyboard=False,
+        input_field_placeholder="Moliyaviy ma’lumotlar 👇"
     )
 
 
-# === HISOBOT KO‘RISH MENYUSI ===
+# === 🗓 HISOBOTLAR KO‘RISH MENYUSI ===
 def reports_menu():
     """
-    📅 Bugungi yoki umumiy hisobotlarni ko‘rish uchun
+    📅 Hisobotlarni ko‘rish uchun menyu
     """
     kb = [
         [KeyboardButton(text="📅 Bugungi hisobotlarim"), KeyboardButton(text="🗓 Umumiy hisobotlarim")],
-        [KeyboardButton(text="🔙 Menyuga qaytish")]
+        [KeyboardButton(text="↩️ Menyuga qaytish")]
     ]
     return ReplyKeyboardMarkup(
         keyboard=kb,
         resize_keyboard=True,
-        one_time_keyboard=True
+        one_time_keyboard=False,
+        input_field_placeholder="Hisobotni tanlang 👇"
     )
 
 
-# === MINIMAL ORQAGA QAYTISH MENYUSI ===
+# === 🔙 MINIMAL ORQAGA QAYTISH MENYUSI ===
 def minimal_back_menu():
     """
     🔙 Minimal orqaga qaytish klaviaturasi
     """
     kb = [
-        [KeyboardButton(text="🔙 Menyuga qaytish")]
+        [KeyboardButton(text="↩️ Menyuga qaytish")]
     ]
     return ReplyKeyboardMarkup(
         keyboard=kb,
-        resize_keyboard=True
+        resize_keyboard=True,
+        one_time_keyboard=False
+    )
+
+
+# === 📷 RASM YUBORISH (TOZALASH) MENYUSI ===
+def photo_send_menu():
+    """
+    📸 Rasm yuborish uchun soddalashtirilgan menyu
+    """
+    kb = [
+        [KeyboardButton(text="📷 Tozalash rasmi yuborish")],
+        [KeyboardButton(text="↩️ Menyuga qaytish")]
+    ]
+    return ReplyKeyboardMarkup(
+        keyboard=kb,
+        resize_keyboard=True,
+        one_time_keyboard=False
     )
