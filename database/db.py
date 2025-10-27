@@ -116,14 +116,18 @@
 
 # src/database/db.py
 import aiosqlite
+import sqlite3
 import os
 
-# Baza fayli yo‘li (Render yoki lokal muhitda ham ishlaydi)
+# === 🔹 Baza fayli yo‘li (Render yoki lokalda ham ishlaydi) ===
 DB_PATH = os.getenv("DATABASE_FILE", "data.db")
 
 
+# === 🔹 Asosiy DB initsializatsiya ===
 async def init_db(db_path: str = DB_PATH):
-    """Barcha jadvallarni yaratish va bazani tayyorlash"""
+    """
+    Barcha jadvallarni yaratish (agar mavjud bo‘lmasa)
+    """
     async with aiosqlite.connect(db_path) as db:
         # 🧍 Ishchilar jadvali
         await db.execute("""
@@ -182,7 +186,7 @@ async def init_db(db_path: str = DB_PATH):
         )
         """)
 
-        # 🚨 Muammolar
+        # 🚨 Muammolar jadvali
         await db.execute("""
         CREATE TABLE IF NOT EXISTS problems (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -195,7 +199,7 @@ async def init_db(db_path: str = DB_PATH):
         )
         """)
 
-        # 📦 Mahsulotlar
+        # 📦 Mahsulotlar jadvali
         await db.execute("""
         CREATE TABLE IF NOT EXISTS products (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -206,7 +210,7 @@ async def init_db(db_path: str = DB_PATH):
         )
         """)
 
-        # 📦 Sotilgan mahsulotlar (miqdor bilan)
+        # 💰 Sotilgan mahsulotlar
         await db.execute("""
         CREATE TABLE IF NOT EXISTS product_sales (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -232,23 +236,33 @@ async def init_db(db_path: str = DB_PATH):
     print("✅ Database initialized successfully!")
 
 
-# Qo‘shimcha yordamchi funksiya (soddalik uchun)
+# === 🔹 Asinxron helper funksiyalar ===
 async def execute(query: str, params: tuple = ()):
-    """Asinxron query bajarish"""
+    """Asinxron SQL buyruq bajarish (INSERT, UPDATE, DELETE)"""
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute(query, params)
         await db.commit()
 
 
+async def fetchone(query: str, params: tuple = ()):
+    """Bitta natijani qaytarish"""
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute(query, params) as cur:
+            return await cur.fetchone()
+
+
 async def fetchall(query: str, params: tuple = ()):
-    """Barcha natijalarni olish"""
+    """Barcha natijalarni qaytarish"""
     async with aiosqlite.connect(DB_PATH) as db:
         async with db.execute(query, params) as cur:
             return await cur.fetchall()
 
 
-async def fetchone(query: str, params: tuple = ()):
-    """Bitta natijani olish"""
-    async with aiosqlite.connect(DB_PATH) as db:
-        async with db.execute(query, params) as cur:
-            return await cur.fetchone()
+# === 🔹 Eski kodlar bilan moslik uchun (sync get_conn) ===
+def get_conn():
+    """
+    Sinxron SQLite ulanish (faqat superadmin yoki admin.py dagi eski kodlar uchun).
+    Ehtiyot bo‘lib ishlat! Yangi kodlarda aiosqlite ishlat.
+    """
+    return sqlite3.connect(DB_PATH)
+
