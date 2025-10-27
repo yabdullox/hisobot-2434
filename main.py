@@ -91,6 +91,8 @@
 #         logger.info("🛑 Bot to‘xtatildi.")
 # main.py — Render Web Service uchun to‘liq moslashtirilgan
 
+# main.py — Render Web Service uchun yakuniy, to‘liq ishlaydigan versiya
+
 import asyncio
 import logging
 import os
@@ -135,7 +137,7 @@ dp = Dispatcher(storage=storage)
 # === 🔹 HTTP (web) server ===
 async def start_web_server(port: int):
     async def handle_root(request):
-        return web.Response(text="HISOBOT24 bot — Running ✅")
+        return web.Response(text="🤖 HISOBOT24 bot — Running ✅")
 
     async def handle_health(request):
         return web.Response(text="OK")
@@ -150,13 +152,13 @@ async def start_web_server(port: int):
     await runner.setup()
     site = web.TCPSite(runner, "0.0.0.0", port)
     await site.start()
-    logger.info(f"🌐 HTTP server started on 0.0.0.0:{port}")
+    logger.info(f"🌐 HTTP server started on port {port}")
 
 
 # === 🔹 Asosiy ishga tushirish funksiyasi ===
 async def main():
     # 1️⃣ Baza ishga tayyorlash
-    await db.init_db(DATABASE_FILE)   # ✅ Asinxron chaqirish
+    await db.init_db(DATABASE_FILE)  # ✅ async ishlash
     logger.info("✅ Baza muvaffaqiyatli ishga tayyor.")
 
     # 2️⃣ Routerlarni ulaymiz
@@ -170,7 +172,7 @@ async def main():
     asyncio.create_task(start_web_server(PORT))
 
     # 4️⃣ Bot pollingni ishga tushiramiz
-    logger.info("🤖 HISOBOT24 bot ishga tushdi! (polling)")
+    logger.info("🤖 HISOBOT24 bot ishga tushdi (polling).")
     await dp.start_polling(bot)
 
 
@@ -180,4 +182,6 @@ if __name__ == "__main__":
         asyncio.run(main())
     except (KeyboardInterrupt, SystemExit):
         logger.info("🛑 Bot to‘xtatildi.")
+
+
 
