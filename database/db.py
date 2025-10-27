@@ -138,89 +138,128 @@
 # # --- Sinxron ulanish (handlerlar uchun kerak bo‘lishi mumkin) ---
 # def get_conn():
 #     return sqlite3.connect(DB_PATH)import os
+# database/db.py
+# HISOBOT24 loyihasi uchun to‘liq, async + sync SQLite baza moduli
 
-import aiosqlite
 import os
+import sqlite3
+import aiosqlite
 
+# 🔹 Baza yo‘li (Render yoki lokal uchun)
 DB_PATH = os.getenv("DATABASE_FILE", "data.db")
 
+
+# === 🔹 Asinxron baza yaratish (aiosqlite bilan) ===
 async def init_db(db_path=DB_PATH):
+    """
+    Dastur ishga tushganda chaqiriladi.
+    Barcha jadval mavjud bo‘lmasa, avtomatik yaratadi.
+    """
     async with aiosqlite.connect(db_path) as db:
-        # Ishchilar jadvali
+
+        # 🧾 Filiallar jadvali
         await db.execute("""
-            CREATE TABLE IF NOT EXISTS workers (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT,
-                tg_id INTEGER UNIQUE,
-                filial_id INTEGER
-            )
+        CREATE TABLE IF NOT EXISTS filials (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT,
+            filial_id TEXT UNIQUE
+        )
         """)
 
-        # Hisobotlar jadvali
+        # 👥 Adminlar jadvali
         await db.execute("""
-            CREATE TABLE IF NOT EXISTS reports (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                worker_id INTEGER,
-                filial_id INTEGER,
-                text TEXT,
-                created_at TEXT
-            )
+        CREATE TABLE IF NOT EXISTS admins (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT,
+            tg_id TEXT UNIQUE,
+            filial_id INTEGER,
+            FOREIGN KEY(filial_id) REFERENCES filials(id)
+        )
         """)
 
-        # Bonuslar jadvali
+        # 👷 Ishchilar jadvali
         await db.execute("""
-            CREATE TABLE IF NOT EXISTS bonuses (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                worker_id INTEGER,
-                filial_id INTEGER,
-                reason TEXT,
-                amount INTEGER,
-                created_at TEXT
-            )
+        CREATE TABLE IF NOT EXISTS workers (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT,
+            tg_id INTEGER UNIQUE,
+            filial_id INTEGER,
+            FOREIGN KEY(filial_id) REFERENCES filials(id)
+        )
         """)
 
-        # Jarimalar jadvali
+        # 🧾 Hisobotlar
         await db.execute("""
-            CREATE TABLE IF NOT EXISTS fines (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                worker_id INTEGER,
-                filial_id INTEGER,
-                reason TEXT,
-                amount INTEGER,
-                created_at TEXT
-            )
+        CREATE TABLE IF NOT EXISTS reports (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            worker_id INTEGER,
+            filial_id INTEGER,
+            text TEXT,
+            created_at TEXT,
+            FOREIGN KEY(worker_id) REFERENCES workers(id)
+        )
         """)
 
-        # Mahsulotlar jadvali
+        # 💰 Bonuslar
         await db.execute("""
-            CREATE TABLE IF NOT EXISTS products (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                worker_id INTEGER,
-                name TEXT
-            )
+        CREATE TABLE IF NOT EXISTS bonuses (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            worker_id INTEGER,
+            filial_id INTEGER,
+            reason TEXT,
+            amount INTEGER,
+            created_at TEXT,
+            FOREIGN KEY(worker_id) REFERENCES workers(id)
+        )
         """)
 
-        # Muammolar jadvali
+        # ⚠️ Jarimalar
         await db.execute("""
-            CREATE TABLE IF NOT EXISTS problems (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                worker_id INTEGER,
-                filial_id INTEGER,
-                photo_id TEXT,
-                note TEXT,
-                status TEXT,
-                created_at TEXT
-            )
+        CREATE TABLE IF NOT EXISTS fines (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            worker_id INTEGER,
+            filial_id INTEGER,
+            reason TEXT,
+            amount INTEGER,
+            created_at TEXT,
+            FOREIGN KEY(worker_id) REFERENCES workers(id)
+        )
+        """)
+
+        # 📦 Mahsulotlar (Ishchi qo‘shgan mahsulotlar)
+        await db.execute("""
+        CREATE TABLE IF NOT EXISTS products (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            worker_id INTEGER,
+            name TEXT,
+            FOREIGN KEY(worker_id) REFERENCES workers(id)
+        )
+        """)
+
+        # 📸 Muammolar
+        await db.execute("""
+        CREATE TABLE IF NOT EXISTS problems (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            worker_id INTEGER,
+            filial_id INTEGER,
+            photo_id TEXT,
+            note TEXT,
+            status TEXT DEFAULT 'Yangi',
+            created_at TEXT,
+            FOREIGN KEY(worker_id) REFERENCES workers(id)
+        )
         """)
 
         await db.commit()
+        print("✅ Baza muvaffaqiyatli yaratildi va ishga tayyor.")
 
 
-# 🔹 Yordamchi funksiyalar (soddalashtirilgan foydalanish uchun)
+# === 🔹 Asinxron funksiyalar (aiosqlite uchun) ===
 async def execute(query, params=()):
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute(query, params)
         await db.commit()
+
 
 async def fetchone(query, params=()):
     async with aiosqlite.connect(DB_PATH) as db:
@@ -228,11 +267,20 @@ async def fetchone(query, params=()):
         row = await cur.fetchone()
         return row
 
+
 async def fetchall(query, params=()):
     async with aiosqlite.connect(DB_PATH) as db:
         cur = await db.execute(query, params)
         rows = await cur.fetchall()
         return rows
 
+
+# === 🔹 Sync ulanish (eski modullar uchun) ===
+def get_conn():
+    """
+    Ba’zi eski modullar (superadmin, admin) sync ishlaydi.
+    Shu sababli sqlite3 orqali oddiy ulanish qaytaramiz.
+    """
+    return sqlite3.connect(DB_PATH)
 
 
