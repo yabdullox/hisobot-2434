@@ -1,38 +1,121 @@
-import aiosqlite
-import os
+import sqlite3, os, shutil
 
-DB_PATH = os.getenv("DATABASE_FILE", "data.db")
+DB_FILE = "data.db"
 
-async def init_db():
-    async with aiosqlite.connect(DB_PATH) as db:
-        await db.execute("""
-        CREATE TABLE IF NOT EXISTS workers (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT,
-            tg_id INTEGER UNIQUE,
-            filial_id INTEGER
-        )""")
+def safe_repair_db(file_name):
+    """Agar baza buzilgan bo‘lsa, uni tiklashga harakat qiladi"""
+    try:
+        # Baza o‘qilsa – muammo yo‘q
+        conn = sqlite3.connect(file_name)
+        conn.execute("SELECT 1;")
+        conn.close()
+        return
+    except sqlite3.DatabaseError:
+        print("⚠️ Baza buzilgan. Tiklashga urinyapmiz...")
 
-        await db.execute("""
-        CREATE TABLE IF NOT EXISTS reports (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            worker_id INTEGER,
-            filial_id INTEGER,
-            text TEXT,
-            created_at TEXT
-        )""")
+        # Zaxira nusxa olish
+        if os.path.exists(file_name):
+            shutil.move(file_name, file_name + ".broken")
 
-        await db.execute("""
-        CREATE TABLE IF NOT EXISTS bonuses (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            worker_id INTEGER,
-            filial_id INTEGER,
-            reason TEXT,
-            amount INTEGER,
-            created_at TEXT
-        )""")
+        # Yangi baza yaratish
+        conn = sqlite3.connect(file_name)
+        conn.close()
+        print("✅ Yangi toza baza yaratildi.")
 
-        await db.execute("""
+
+def get_conn():
+    return sqlite3.connect(DB_FILE)
+
+
+def init_db(filename="data.db"):
+    global DB_FILE
+    DB_FILE = filename
+
+    safe_repair_db(filename)  # 🔹 Shu joy eng muhim!
+
+    conn = sqlite3.connect(filename)
+    cur = conn.cursor()
+
+    # --- Filiallar
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS filials (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT,
+        filial_id TEXT UNIQUE
+    )
+    """)
+
+    # --- Adminlar
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS admins (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT,
+        tg_id TEXT UNIQUE,
+        filial_id INTEGER,
+        FOREIGN KEY(filial_id) REFERENCES filials(id)
+    )
+    """)
+
+    # --- Ishchilar
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS workers (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT,
+        tg_id TEXT UNIQUE,
+        filial_id INTEGER,
+        FOREIGN KEY(filial_id) REFERENCES filials(id)
+    )
+    """)
+
+    # --- Hisobotlar
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS reports (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        worker_id INTEGER,
+        filial_id INTEGER,
+        text TEXT,
+        created_at TEXT
+    )
+    """)
+
+    # --- Bonus va Jarimalar
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS bonuses (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        worker_id INTEGER,
+        filial_id INTEGER,
+        reason TEXT,
+        amount INTEGER,
+        created_at TEXT
+    )
+    """)
+
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS fines (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        worker_id INTEGER,
+        filial_id INTEGER,
+        reason TEXT,
+        amount INTEGER,
+        created_at TEXT
+    )
+    """)
+
+    # --- Muammolar
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS problems (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        worker_id INTEGER,
+        filial_id INTEGER,
+        note TEXT,
+        file_id TEXT,
+        status TEXT,
+        created_at TEXT
+    )
+    """)
+
+     # --- Jarimalar jadvali ---
+    cur.execute("""
         CREATE TABLE IF NOT EXISTS fines (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             worker_id INTEGER,
@@ -40,78 +123,20 @@ async def init_db():
             reason TEXT,
             amount INTEGER,
             created_at TEXT
-        )""")
+        )
+    """)
 
-        await db.execute("""
-        CREATE TABLE IF NOT EXISTS photos (
+    # --- Bonuslar jadvali ---
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS bonuses (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             worker_id INTEGER,
             filial_id INTEGER,
-            file_id TEXT,
-            note TEXT,
+            reason TEXT,
+            amount INTEGER,
             created_at TEXT
-        )""")
+        )
+    """)
 
-        await db.execute("""
-        CREATE TABLE IF NOT EXISTS problems (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            worker_id INTEGER,
-            filial_id INTEGER,
-            note TEXT,
-            file_id TEXT,
-            created_at TEXT
-        )""")
-
-        await db.commit()
-    print("✅ Database initialized successfully!")
-
-# Qo‘shimcha qulay funksiyalar
-async def add_bonus(tg_id, reason, amount):
-    async with aiosqlite.connect(DB_PATH) as db:
-        await db.execute("""
-        INSERT INTO bonuses (worker_id, filial_id, reason, amount, created_at)
-        VALUES ((SELECT id FROM workers WHERE tg_id=?),
-                (SELECT filial_id FROM workers WHERE tg_id=?),
-                ?, ?, datetime('now'))
-        """, (tg_id, tg_id, reason, amount))
-        await db.commit()
-
-async def add_fine(tg_id, reason, amount):
-    async with aiosqlite.connect(DB_PATH) as db:
-        await db.execute("""
-        INSERT INTO fines (worker_id, filial_id, reason, amount, created_at)
-        VALUES ((SELECT id FROM workers WHERE tg_id=?),
-                (SELECT filial_id FROM workers WHERE tg_id=?),
-                ?, ?, datetime('now'))
-        """, (tg_id, tg_id, reason, amount))
-        await db.commit()
-
-async def add_report(tg_id, text, created_at):
-    async with aiosqlite.connect(DB_PATH) as db:
-        await db.execute("""
-        INSERT INTO reports (worker_id, filial_id, text, created_at)
-        VALUES ((SELECT id FROM workers WHERE tg_id=?),
-                (SELECT filial_id FROM workers WHERE tg_id=?),
-                ?, ?)
-        """, (tg_id, tg_id, text, created_at))
-        await db.commit()
-
-async def add_photo(tg_id, file_id, note):
-    async with aiosqlite.connect(DB_PATH) as db:
-        await db.execute("""
-        INSERT INTO photos (worker_id, filial_id, file_id, note, created_at)
-        VALUES ((SELECT id FROM workers WHERE tg_id=?),
-                (SELECT filial_id FROM workers WHERE tg_id=?),
-                ?, ?, datetime('now'))
-        """, (tg_id, tg_id, file_id, note))
-        await db.commit()
-
-async def add_problem(tg_id, file_id, note):
-    async with aiosqlite.connect(DB_PATH) as db:
-        await db.execute("""
-        INSERT INTO problems (worker_id, filial_id, note, file_id, created_at)
-        VALUES ((SELECT id FROM workers WHERE tg_id=?),
-                (SELECT filial_id FROM workers WHERE tg_id=?),
-                ?, ?, datetime('now'))
-        """, (tg_id, tg_id, note, file_id))
-        await db.commit()
+    conn.commit()
+    print("✅ Baza muvaffaqiyatli ishga tayyor.")
