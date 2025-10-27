@@ -1,22 +1,10 @@
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 
-# 👷‍♂️ Worker menyusi
-worker_menu = ReplyKeyboardMarkup(
-    resize_keyboard=True,
-    keyboard=[
-        [
-            KeyboardButton(text="🧾 Hisobot yuborish"),
-            KeyboardButton(text="⏰ Ishni boshladim")
-        ],
-        [
-            KeyboardButton(text="🐝 Bonus/Jarimalarim")
-        ],
-        [
-            KeyboardButton(text="📷 Tozalash rasmi yuborish")
-            
-        ],
-        [
-            KeyboardButton(text="🔙 Menyuga qaytish")
-        ]
+def worker_menu():
+    kb = [
+        [KeyboardButton(text="🧾 Hisobot yuborish"), KeyboardButton(text="⏰ Ishni boshladim")],
+        [KeyboardButton(text="🏁 Ishni tugatdim")],
+        [KeyboardButton(text="📷 Tozalash rasmi yuborish"), KeyboardButton(text="📸 Muammo yuborish")],
+        [KeyboardButton(text="💰 Bonus/Jarimalarim"), KeyboardButton(text="↩️ Menyuga qaytish")]
     ]
-)
+    return ReplyKeyboardMarkup(keyboard=kb, resize_keyboard=True)
