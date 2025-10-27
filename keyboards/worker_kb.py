@@ -165,3 +165,20 @@ def photo_send_menu():
         resize_keyboard=True,
         one_time_keyboard=False
     )
+# === 📦 MAHSULOTLAR MENYUSI ===
+def product_menu():
+    """
+    📦 Mahsulotlar bilan ishlash uchun menyu:
+    qo‘shish, o‘chirish, qaytish
+    """
+    kb = [
+        [KeyboardButton(text="➕ Mahsulot qo‘shish"), KeyboardButton(text="❌ Mahsulotni o‘chirish")],
+        [KeyboardButton(text="↩️ Menyuga qaytish")]
+    ]
+    return ReplyKeyboardMarkup(
+        keyboard=kb,
+        resize_keyboard=True,
+        one_time_keyboard=False,
+        input_field_placeholder="Mahsulotlar bo‘limi 👇"
+    )
+
