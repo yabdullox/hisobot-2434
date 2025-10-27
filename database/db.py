@@ -1,206 +1,35 @@
-# import os
-# import sqlite3
-# import shutil
-# import aiosqlite
-
-# DB_PATH = "data.db"
-
-# # --- Baza buzilgan bo‘lsa, tiklash ---
-# def safe_repair_db(file_name: str):
-#     try:
-#         conn = sqlite3.connect(file_name)
-#         conn.execute("SELECT 1;")
-#         conn.close()
-#     except sqlite3.DatabaseError:
-#         print("⚠️ Baza buzilgan! Tiklanmoqda...")
-#         if os.path.exists(file_name):
-#             shutil.move(file_name, file_name + ".broken")
-#         conn = sqlite3.connect(file_name)
-#         conn.close()
-#         print("✅ Yangi toza baza yaratildi.")
-
-
-# # --- Asinxron bazani yaratish (barcha jadvallar bilan) ---
-# async def init_db(filename="data.db"):
-#     global DB_PATH
-#     DB_PATH = filename
-#     safe_repair_db(filename)
-
-#     async with aiosqlite.connect(filename) as db:
-#         # --- Filiallar
-#         await db.execute("""
-#         CREATE TABLE IF NOT EXISTS filials (
-#             id INTEGER PRIMARY KEY AUTOINCREMENT,
-#             name TEXT,
-#             filial_id TEXT UNIQUE
-#         )
-#         """)
-
-#         # --- Adminlar
-#         await db.execute("""
-#         CREATE TABLE IF NOT EXISTS admins (
-#             id INTEGER PRIMARY KEY AUTOINCREMENT,
-#             name TEXT,
-#             tg_id TEXT UNIQUE,
-#             filial_id INTEGER,
-#             FOREIGN KEY(filial_id) REFERENCES filials(id)
-#         )
-#         """)
-
-#         # --- Ishchilar
-#         await db.execute("""
-#         CREATE TABLE IF NOT EXISTS workers (
-#             id INTEGER PRIMARY KEY AUTOINCREMENT,
-#             name TEXT,
-#             tg_id TEXT UNIQUE,
-#             filial_id INTEGER,
-#             FOREIGN KEY(filial_id) REFERENCES filials(id)
-#         )
-#         """)
-
-#         # --- Hisobotlar
-#         await db.execute("""
-#         CREATE TABLE IF NOT EXISTS reports (
-#             id INTEGER PRIMARY KEY AUTOINCREMENT,
-#             worker_id INTEGER,
-#             filial_id INTEGER,
-#             text TEXT,
-#             created_at TEXT DEFAULT (datetime('now', 'localtime')),
-#             FOREIGN KEY(worker_id) REFERENCES workers(id)
-#         )
-#         """)
-
-#         # --- Bonuslar
-#         await db.execute("""
-#         CREATE TABLE IF NOT EXISTS bonuses (
-#             id INTEGER PRIMARY KEY AUTOINCREMENT,
-#             worker_id INTEGER,
-#             filial_id INTEGER,
-#             reason TEXT,
-#             amount INTEGER,
-#             created_at TEXT DEFAULT (datetime('now', 'localtime')),
-#             FOREIGN KEY(worker_id) REFERENCES workers(id)
-#         )
-#         """)
-
-#         # --- Jarimalar
-#         await db.execute("""
-#         CREATE TABLE IF NOT EXISTS fines (
-#             id INTEGER PRIMARY KEY AUTOINCREMENT,
-#             worker_id INTEGER,
-#             filial_id INTEGER,
-#             reason TEXT,
-#             amount INTEGER,
-#             created_at TEXT DEFAULT (datetime('now', 'localtime')),
-#             FOREIGN KEY(worker_id) REFERENCES workers(id)
-#         )
-#         """)
-
-#         # --- Muammolar (rasm bilan)
-#         await db.execute("""
-#         CREATE TABLE IF NOT EXISTS problems (
-#             id INTEGER PRIMARY KEY AUTOINCREMENT,
-#             worker_id INTEGER,
-#             filial_id INTEGER,
-#             note TEXT,
-#             file_id TEXT,
-#             status TEXT DEFAULT 'Yangi',
-#             created_at TEXT DEFAULT (datetime('now', 'localtime')),
-#             FOREIGN KEY(worker_id) REFERENCES workers(id)
-#         )
-#         """)
-
-#         # --- Ish boshlash loglari
-#         await db.execute("""
-#         CREATE TABLE IF NOT EXISTS work_start_log (
-#             id INTEGER PRIMARY KEY AUTOINCREMENT,
-#             worker_id INTEGER,
-#             filial_id INTEGER,
-#             start_time TEXT
-#         )
-#         """)
-
-#         # --- Ishchilar mahsulotlari (📦 Mahsulotlarim)
-#         await db.execute("""
-#         CREATE TABLE IF NOT EXISTS worker_products (
-#             id INTEGER PRIMARY KEY AUTOINCREMENT,
-#             worker_id INTEGER,
-#             product_name TEXT,
-#             created_at TEXT DEFAULT (datetime('now', 'localtime')),
-#             FOREIGN KEY(worker_id) REFERENCES workers(id)
-#         )
-#         """)
-
-#         await db.commit()
-#         print("✅ Baza muvaffaqiyatli yaratildi va ishga tayyor!")
-
-
-# # --- Sinxron ulanish (handlerlar uchun kerak bo‘lishi mumkin) ---
-# def get_conn():
-#     return sqlite3.connect(DB_PATH)import os
-# database/db.py
-# HISOBOT24 loyihasi uchun to‘liq, async + sync SQLite baza moduli
-
-import os
-import sqlite3
+# src/database/db.py
 import aiosqlite
+import os
 
-# 🔹 Baza yo‘li (Render yoki lokal uchun)
+# 🔹 Baza fayli yo‘li (Render yoki lokalda)
 DB_PATH = os.getenv("DATABASE_FILE", "data.db")
 
-
-# === 🔹 Asinxron baza yaratish (aiosqlite bilan) ===
-async def init_db(db_path=DB_PATH):
-    """
-    Dastur ishga tushganda chaqiriladi.
-    Barcha jadval mavjud bo‘lmasa, avtomatik yaratadi.
-    """
+async def init_db(db_path: str = DB_PATH):
+    """Bazani yaratish va jadvallarni tekshirish (agar bo‘lmasa)"""
     async with aiosqlite.connect(db_path) as db:
-
-        # 🧾 Filiallar jadvali
-        await db.execute("""
-        CREATE TABLE IF NOT EXISTS filials (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT,
-            filial_id TEXT UNIQUE
-        )
-        """)
-
-        # 👥 Adminlar jadvali
-        await db.execute("""
-        CREATE TABLE IF NOT EXISTS admins (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT,
-            tg_id TEXT UNIQUE,
-            filial_id INTEGER,
-            FOREIGN KEY(filial_id) REFERENCES filials(id)
-        )
-        """)
-
-        # 👷 Ishchilar jadvali
+        # --- Ishchilar jadvali ---
         await db.execute("""
         CREATE TABLE IF NOT EXISTS workers (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT,
             tg_id INTEGER UNIQUE,
-            filial_id INTEGER,
-            FOREIGN KEY(filial_id) REFERENCES filials(id)
+            filial_id INTEGER
         )
         """)
 
-        # 🧾 Hisobotlar
+        # --- Hisobotlar ---
         await db.execute("""
         CREATE TABLE IF NOT EXISTS reports (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             worker_id INTEGER,
             filial_id INTEGER,
             text TEXT,
-            created_at TEXT,
-            FOREIGN KEY(worker_id) REFERENCES workers(id)
+            created_at TEXT
         )
         """)
 
-        # 💰 Bonuslar
+        # --- Bonuslar ---
         await db.execute("""
         CREATE TABLE IF NOT EXISTS bonuses (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -208,12 +37,11 @@ async def init_db(db_path=DB_PATH):
             filial_id INTEGER,
             reason TEXT,
             amount INTEGER,
-            created_at TEXT,
-            FOREIGN KEY(worker_id) REFERENCES workers(id)
+            created_at TEXT
         )
         """)
 
-        # ⚠️ Jarimalar
+        # --- Jarimalar ---
         await db.execute("""
         CREATE TABLE IF NOT EXISTS fines (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -221,66 +49,67 @@ async def init_db(db_path=DB_PATH):
             filial_id INTEGER,
             reason TEXT,
             amount INTEGER,
-            created_at TEXT,
-            FOREIGN KEY(worker_id) REFERENCES workers(id)
+            created_at TEXT
         )
         """)
 
-        # 📦 Mahsulotlar (Ishchi qo‘shgan mahsulotlar)
+        # --- Tozalash rasmlari ---
         await db.execute("""
-        CREATE TABLE IF NOT EXISTS products (
+        CREATE TABLE IF NOT EXISTS photos (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             worker_id INTEGER,
-            name TEXT,
-            FOREIGN KEY(worker_id) REFERENCES workers(id)
+            filial_id INTEGER,
+            file_id TEXT,
+            note TEXT,
+            created_at TEXT
         )
         """)
 
-        # 📸 Muammolar
+        # --- Muammolar ---
         await db.execute("""
         CREATE TABLE IF NOT EXISTS problems (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             worker_id INTEGER,
             filial_id INTEGER,
-            photo_id TEXT,
             note TEXT,
-            status TEXT DEFAULT 'Yangi',
-            created_at TEXT,
-            FOREIGN KEY(worker_id) REFERENCES workers(id)
+            file_id TEXT,
+            status TEXT,
+            created_at TEXT
+        )
+        """)
+
+        # --- Mahsulotlar ---
+        await db.execute("""
+        CREATE TABLE IF NOT EXISTS products (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            worker_id INTEGER,
+            filial_id INTEGER,
+            name TEXT,
+            created_at TEXT
+        )
+        """)
+
+        # --- Mahsulot savdosi ---
+        await db.execute("""
+        CREATE TABLE IF NOT EXISTS product_sales (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            product_id INTEGER,
+            worker_id INTEGER,
+            quantity TEXT,
+            created_at TEXT
+        )
+        """)
+
+        # --- Ish boshlanish logi ---
+        await db.execute("""
+        CREATE TABLE IF NOT EXISTS work_start_log (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            worker_id INTEGER,
+            filial_id INTEGER,
+            start_time TEXT
         )
         """)
 
         await db.commit()
-        print("✅ Baza muvaffaqiyatli yaratildi va ishga tayyor.")
 
-
-# === 🔹 Asinxron funksiyalar (aiosqlite uchun) ===
-async def execute(query, params=()):
-    async with aiosqlite.connect(DB_PATH) as db:
-        await db.execute(query, params)
-        await db.commit()
-
-
-async def fetchone(query, params=()):
-    async with aiosqlite.connect(DB_PATH) as db:
-        cur = await db.execute(query, params)
-        row = await cur.fetchone()
-        return row
-
-
-async def fetchall(query, params=()):
-    async with aiosqlite.connect(DB_PATH) as db:
-        cur = await db.execute(query, params)
-        rows = await cur.fetchall()
-        return rows
-
-
-# === 🔹 Sync ulanish (eski modullar uchun) ===
-def get_conn():
-    """
-    Ba’zi eski modullar (superadmin, admin) sync ishlaydi.
-    Shu sababli sqlite3 orqali oddiy ulanish qaytaramiz.
-    """
-    return sqlite3.connect(DB_PATH)
-
-
+    print("✅ Database initialized successfully!")
