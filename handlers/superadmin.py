@@ -618,21 +618,26 @@ async def filial_list(msg: types.Message):
     await msg.answer(text, parse_mode="HTML")
 
 # === ➕ Filial qo‘shish ===
+admin_state = {}  # bu fayl boshida bo‘lishi kerak
+
 @router.message(F.text == "➕ Filial qo‘shish")
 async def filial_add_start(msg: types.Message):
-    await msg.answer("🏢 Filial nomini kiriting:", reply_markup=ReplyKeyboardRemove())
-    msg.conf["state"] = "add_filial"
+    admin_state[msg.from_user.id] = "add_filial"
+    await msg.answer("🏢 Yangi filial nomini kiriting:", reply_markup=ReplyKeyboardRemove())
 
 @router.message(F.text)
 async def filial_add(msg: types.Message):
-    if msg.conf.get("state") != "add_filial":
-        return
-    name = msg.text.strip()
+    uid = msg.from_user.id
+    if uid not in admin_state or admin_state[uid] != "add_filial":
+        return  # boshqa holatlarda qaytamiz
+
+    filial_name = msg.text.strip()
     async with aiosqlite.connect(db.DB_PATH) as conn:
-        await conn.execute("INSERT INTO filial (name) VALUES (?)", (name,))
+        await conn.execute("INSERT INTO filial (name) VALUES (?)", (filial_name,))
         await conn.commit()
-    msg.conf["state"] = None
-    await msg.answer(f"✅ Filial '{name}' qo‘shildi.", reply_markup=superadmin_menu())
+
+    admin_state[uid] = None
+    await msg.answer(f"✅ Filial '{filial_name}' qo‘shildi.", reply_markup=superadmin_menu())
 
 # === 👥 Adminlar ro‘yxati ===
 @router.message(F.text == "👥 Adminlar ro‘yxati")
