@@ -201,7 +201,7 @@
 #         worker_state[user_id] = None
 from aiogram import Router, F, types
 from aiogram.types import ReplyKeyboardRemove
-from keyboards.worker_kb import worker_menu, product_menu
+from keyboards.worker_kb import worker_menu, product_menu, confirm_end_work_menu
 from database import db
 from config import SUPERADMIN_ID
 import datetime
@@ -212,68 +212,47 @@ worker_state = {}
 worker_data = {}
 
 
-# === 🧾 HISOBOT YUBORISH BOSHLANISHI ===
+# === 🧾 HISOBOT YUBORISH ===
 @router.message(F.text == "🧾 Hisobot yuborish")
 async def start_report(message: types.Message):
-    worker_state[message.from_user.id] = "waiting_for_main_report"
+    await message.answer(
+        "📤 Iltimos, bugungi ish hisobotini yozing.\nMasalan: 'Bugun 5 ta mijoz, 3 ta tozalash, 1 muammo.'",
+        reply_markup=ReplyKeyboardRemove()
+    )
+    worker_state[message.from_user.id] = "waiting_for_report"
     worker_data[message.from_user.id] = {}
-    await message.answer("🧾 Iltimos, bugungi ish hisobotini kiriting:\nMasalan: '5 ta mijoz, 3 ta tozalash, 1 muammo'.")
 
 
-# === HISOBOT YUBORISH BOSQICHLARI ===
 @router.message(F.text)
 async def handle_report(message: types.Message):
     user_id = message.from_user.id
     state = worker_state.get(user_id)
 
-    # 1️⃣ Asosiy hisobot
-    if state == "waiting_for_main_report":
+    # 1️⃣ Hisobot matni
+    if state == "waiting_for_report":
         worker_data[user_id]["report"] = message.text
-        worker_state[user_id] = "waiting_for_sales_sum"
+        worker_state[user_id] = "waiting_for_sales"
         await message.answer("💵 Bugungi savdo summasini kiriting (so‘mda):")
+        return
 
     # 2️⃣ Savdo summasi
-    elif state == "waiting_for_sales_sum":
+    elif state == "waiting_for_sales":
         try:
-            total = int(message.text.replace(" ", ""))
-            worker_data[user_id]["sales_sum"] = total
+            amount = int(message.text.replace(" ", ""))
+            worker_data[user_id]["sales"] = amount
         except ValueError:
-            return await message.answer("❌ Faqat raqam kiriting. Masalan: 1250000")
+            return await message.answer("❌ Iltimos, faqat raqam kiriting.")
 
-        async with aiosqlite.connect(db.DB_PATH) as conn:
-            async with conn.execute("SELECT name FROM products WHERE worker_id=(SELECT id FROM workers WHERE tg_id=?)", (user_id,)) as cur:
-                products = await cur.fetchall()
+        worker_state[user_id] = "ready_to_submit"
+        await message.answer("✅ Hisobot tayyor. Yuborish uchun '✅ Tasdiqlash' deb yozing.")
+        return
 
-        if not products:
-            worker_state[user_id] = None
-            return await message.answer("📦 Sizda mahsulot yo‘q. Avval '📦 Mahsulotlarim' orqali qo‘shing.", reply_markup=worker_menu())
-
-        names = [p[0] for p in products]
-        worker_data[user_id]["products"] = names
-        worker_data[user_id]["quantities"] = {}
-        first = names[0]
-        worker_state[user_id] = f"waiting_for_quantity_{first}"
-        await message.answer(f"📦 '{first}' dan qancha sotdingiz?")
-
-    # 3️⃣ Har bir mahsulot miqdori
-    elif state and state.startswith("waiting_for_quantity_"):
-        product = state.replace("waiting_for_quantity_", "")
-        worker_data[user_id]["quantities"][product] = message.text
-        prods = worker_data[user_id]["products"]
-        idx = prods.index(product)
-        if idx + 1 < len(prods):
-            next_p = prods[idx + 1]
-            worker_state[user_id] = f"waiting_for_quantity_{next_p}"
-            await message.answer(f"📦 '{next_p}' dan qancha sotdingiz?")
-        else:
-            worker_state[user_id] = "ready_to_submit"
-            await message.answer("✅ Hisobot tayyor! Yuborish uchun '✅ Tasdiqlash' deb yozing.")
-
-    # 4️⃣ Tasdiqlash
-    elif state == "ready_to_submit" and message.text.lower() in ["✅ tasdiqlash", "tasdiqlash", "ok"]:
+    # 3️⃣ Yakuniy tasdiqlash
+    elif state == "ready_to_submit" and message.text.lower() in ["✅ tasdiqlash", "tasdiqlash", "ok", "ha"]:
         async with aiosqlite.connect(db.DB_PATH) as conn:
             async with conn.execute("SELECT id, filial_id, name FROM workers WHERE tg_id=?", (user_id,)) as cur:
                 worker = await cur.fetchone()
+
             if not worker:
                 return await message.answer("❌ Siz tizimda yo‘qsiz.", reply_markup=worker_menu())
 
@@ -281,27 +260,72 @@ async def handle_report(message: types.Message):
                 f"📊 <b>Yangi hisobot</b>\n"
                 f"👷 Ishchi: {worker[2]}\n"
                 f"📍 Filial ID: {worker[1]}\n"
-                f"🧾 {worker_data[user_id]['report']}\n"
-                f"💵 Savdo: {worker_data[user_id]['sales_sum']:,} so‘m\n"
-                f"📦 Sotilgan mahsulotlar:\n"
+                f"🧾 Hisobot: {worker_data[user_id]['report']}\n"
+                f"💵 Savdo summasi: {worker_data[user_id]['sales']:,} so‘m\n"
+                f"🕒 {datetime.datetime.now().strftime('%Y-%m-%d %H:%M')}"
             )
-            for p, q in worker_data[user_id]["quantities"].items():
-                text += f"• {p}: {q}\n"
-            text += f"\n🕒 {datetime.datetime.now().strftime('%Y-%m-%d %H:%M')}"
 
-            await conn.execute("INSERT INTO reports (worker_id, filial_id, text, created_at) VALUES (?, ?, ?, ?)",
-                               (worker[0], worker[1], text, datetime.datetime.now().strftime("%Y-%m-%d %H:%M")))
+            await conn.execute(
+                "INSERT INTO reports (worker_id, filial_id, text, created_at) VALUES (?, ?, ?, ?)",
+                (worker[0], worker[1], text, datetime.datetime.now().strftime("%Y-%m-%d %H:%M"))
+            )
             await conn.commit()
 
         await message.bot.send_message(SUPERADMIN_ID, text, parse_mode="HTML")
         worker_state[user_id] = None
-        worker_data[user_id] = {}
         await message.answer("✅ Hisobot yuborildi!", reply_markup=worker_menu())
 
 
-# === 📦 MAHSULOTLAR ===
+# === ⏰ ISHNI BOSHLADIM ===
+@router.message(F.text == "⏰ Ishni boshladim")
+async def start_work(message: types.Message):
+    await message.answer("✅ Ish boshlanishi qayd etildi.", reply_markup=worker_menu())
+
+
+# === 🏁 ISHNI TUGATDIM ===
+@router.message(F.text == "🏁 Ishni tugatdim")
+async def end_work(message: types.Message):
+    await message.answer("📩 Yakuniy hisobotni yuborish uchun quyidagi tugmani bosing:",
+                         reply_markup=confirm_end_work_menu())
+    worker_state[message.from_user.id] = "waiting_for_final"
+
+
+@router.message(F.text == "📤 Yakuniy hisobotni yuborish")
+async def send_final_report(message: types.Message):
+    await message.answer("✏️ Yakuniy hisobotni yozing:", reply_markup=ReplyKeyboardRemove())
+    worker_state[message.from_user.id] = "waiting_for_final_text"
+
+
+@router.message(F.text)
+async def receive_final_report(message: types.Message):
+    user_id = message.from_user.id
+    if worker_state.get(user_id) != "waiting_for_final_text":
+        return
+
+    async with aiosqlite.connect(db.DB_PATH) as conn:
+        async with conn.execute("SELECT id, filial_id, name FROM workers WHERE tg_id=?", (user_id,)) as cur:
+            worker = await cur.fetchone()
+        if not worker:
+            return await message.answer("❌ Siz tizimda yo‘qsiz.", reply_markup=worker_menu())
+
+        text = (
+            f"🏁 <b>{worker[2]}</b> ishni yakunladi.\n"
+            f"🧾 Yakuniy hisobot:\n{message.text}"
+        )
+        await conn.execute(
+            "INSERT INTO reports (worker_id, filial_id, text, created_at) VALUES (?, ?, ?, ?)",
+            (worker[0], worker[1], text, datetime.datetime.now().strftime("%Y-%m-%d %H:%M"))
+        )
+        await conn.commit()
+
+    await message.bot.send_message(SUPERADMIN_ID, text, parse_mode="HTML")
+    worker_state[user_id] = None
+    await message.answer("✅ Yakuniy hisobot yuborildi!", reply_markup=worker_menu())
+
+
+# === 📦 MAHSULOTLARIM ===
 @router.message(F.text == "📦 Mahsulotlarim")
-async def product_menu_open(message: types.Message):
+async def show_products(message: types.Message):
     async with aiosqlite.connect(db.DB_PATH) as conn:
         async with conn.execute("SELECT id FROM workers WHERE tg_id=?", (message.from_user.id,)) as cur:
             worker = await cur.fetchone()
@@ -311,29 +335,25 @@ async def product_menu_open(message: types.Message):
         async with conn.execute("SELECT name FROM products WHERE worker_id=?", (worker[0],)) as cur:
             products = await cur.fetchall()
 
-    if products:
-        text = "\n".join([f"• {p[0]}" for p in products])
-        await message.answer(f"📦 Sizda mavjud mahsulotlar:\n{text}", reply_markup=product_menu())
-    else:
-        await message.answer("📭 Sizda hali mahsulot yo‘q.\nQuyidagilardan birini tanlang 👇", reply_markup=product_menu())
+    if not products:
+        return await message.answer("📦 Sizda hali mahsulotlar yo‘q.", reply_markup=product_menu())
+
+    text = "📋 Sizdagi mahsulotlar:\n" + "\n".join([f"• {p[0]}" for p in products])
+    await message.answer(text, reply_markup=product_menu())
 
 
+# === MAHSULOT QO‘SHISH ===
 @router.message(F.text == "➕ Mahsulot qo‘shish")
-async def add_product(message: types.Message):
+async def add_product_prompt(message: types.Message):
+    await message.answer("📝 Yangi mahsulot nomini kiriting:", reply_markup=ReplyKeyboardRemove())
     worker_state[message.from_user.id] = "waiting_for_product_name"
-    await message.answer("✏️ Yangi mahsulot nomini yozing:", reply_markup=ReplyKeyboardRemove())
-
-
-@router.message(F.text == "❌ Mahsulotni o‘chirish")
-async def del_product(message: types.Message):
-    worker_state[message.from_user.id] = "waiting_for_product_delete"
-    await message.answer("🗑 O‘chirmoqchi bo‘lgan mahsulot nomini yozing:", reply_markup=ReplyKeyboardRemove())
 
 
 @router.message(F.text)
-async def handle_product_input(message: types.Message):
+async def add_product_name(message: types.Message):
     user_id = message.from_user.id
-    state = worker_state.get(user_id)
+    if worker_state.get(user_id) != "waiting_for_product_name":
+        return
 
     async with aiosqlite.connect(db.DB_PATH) as conn:
         async with conn.execute("SELECT id FROM workers WHERE tg_id=?", (user_id,)) as cur:
@@ -341,14 +361,34 @@ async def handle_product_input(message: types.Message):
         if not worker:
             return await message.answer("❌ Siz tizimda yo‘qsiz.", reply_markup=worker_menu())
 
-        if state == "waiting_for_product_name":
-            await conn.execute("INSERT INTO products (worker_id, name) VALUES (?, ?)", (worker[0], message.text.strip()))
-            await conn.commit()
-            worker_state[user_id] = None
-            await message.answer("✅ Mahsulot qo‘shildi!", reply_markup=worker_menu())
+        await conn.execute("INSERT INTO products (worker_id, name) VALUES (?, ?)", (worker[0], message.text))
+        await conn.commit()
 
-        elif state == "waiting_for_product_delete":
-            await conn.execute("DELETE FROM products WHERE worker_id=? AND name=?", (worker[0], message.text.strip()))
-            await conn.commit()
-            worker_state[user_id] = None
-            await message.answer("🗑 Mahsulot o‘chirildi!", reply_markup=worker_menu())
+    worker_state[user_id] = None
+    await message.answer(f"✅ '{message.text}' qo‘shildi!", reply_markup=product_menu())
+
+
+# === MAHSULOTNI O‘CHIRISH ===
+@router.message(F.text == "❌ Mahsulotni o‘chirish")
+async def delete_product_prompt(message: types.Message):
+    await message.answer("🗑 O‘chirmoqchi bo‘lgan mahsulot nomini kiriting:", reply_markup=ReplyKeyboardRemove())
+    worker_state[message.from_user.id] = "waiting_for_delete_product"
+
+
+@router.message(F.text)
+async def delete_product_name(message: types.Message):
+    user_id = message.from_user.id
+    if worker_state.get(user_id) != "waiting_for_delete_product":
+        return
+
+    async with aiosqlite.connect(db.DB_PATH) as conn:
+        async with conn.execute("SELECT id FROM workers WHERE tg_id=?", (user_id,)) as cur:
+            worker = await cur.fetchone()
+        if not worker:
+            return await message.answer("❌ Siz tizimda yo‘qsiz.", reply_markup=worker_menu())
+
+        await conn.execute("DELETE FROM products WHERE worker_id=? AND name=?", (worker[0], message.text))
+        await conn.commit()
+
+    worker_state[user_id] = None
+    await message.answer(f"🗑 '{message.text}' o‘chirildi!", reply_markup=product_menu())
