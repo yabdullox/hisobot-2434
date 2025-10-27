@@ -137,8 +137,7 @@
 
 # # --- Sinxron ulanish (handlerlar uchun kerak bo‘lishi mumkin) ---
 # def get_conn():
-#     return sqlite3.connect(DB_PATH)
-import os
+#     return sqlite3.connect(DB_PATH)import os
 import sqlite3
 import shutil
 import aiosqlite
@@ -288,18 +287,14 @@ async def init_db(filename="data.db"):
 
 # === 📡 MA’LUMOT QO‘SHISH / O‘QISH FUNKSIYALARI ===
 async def execute(query: str, params: tuple = ()):
-    """
-    INSERT / UPDATE / DELETE so‘rovlari uchun
-    """
+    """INSERT / UPDATE / DELETE so‘rovlari uchun"""
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute(query, params)
         await db.commit()
 
 
 async def fetchone(query: str, params: tuple = ()):
-    """
-    Bitta satrni olish uchun (SELECT LIMIT 1)
-    """
+    """Bitta satrni olish uchun"""
     async with aiosqlite.connect(DB_PATH) as db:
         cur = await db.execute(query, params)
         row = await cur.fetchone()
@@ -307,9 +302,7 @@ async def fetchone(query: str, params: tuple = ()):
 
 
 async def fetchall(query: str, params: tuple = ()):
-    """
-    Bir nechta satrlarni olish uchun (SELECT *)
-    """
+    """Bir nechta satrlarni olish uchun"""
     async with aiosqlite.connect(DB_PATH) as db:
         cur = await db.execute(query, params)
         rows = await cur.fetchall()
@@ -319,4 +312,5 @@ async def fetchall(query: str, params: tuple = ()):
 # === 🔧 SYNC ULANISH (fallback) ===
 def get_conn():
     return sqlite3.connect(DB_PATH)
+
 
