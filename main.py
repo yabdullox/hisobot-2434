@@ -92,7 +92,6 @@
 # main.py — Render Web Service uchun to‘liq moslashtirilgan
 
 # main.py — Render Web Service uchun yakuniy, to‘liq ishlaydigan versiya
-
 import asyncio
 import logging
 import os
@@ -105,17 +104,14 @@ from aiohttp import web
 from database import db
 from handlers import start, superadmin, admin, worker
 
-
 # === 🔹 Muhit o‘zgaruvchilarni yuklaymiz ===
 load_dotenv()
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-DATABASE_FILE = os.getenv("DATABASE_FILE", "data.db")
 PORT = int(os.getenv("PORT", 8000))  # Render uchun majburiy
 
 if not BOT_TOKEN:
     raise RuntimeError("❌ Iltimos, .env faylga BOT_TOKEN ni yozing.")
-
 
 # === 🔹 Logging sozlamalari ===
 logging.basicConfig(
@@ -124,7 +120,6 @@ logging.basicConfig(
 )
 logger = logging.getLogger("hisobot24")
 
-
 # === 🔹 Bot va Dispatcher ===
 bot = Bot(
     token=BOT_TOKEN,
@@ -132,7 +127,6 @@ bot = Bot(
 )
 storage = MemoryStorage()
 dp = Dispatcher(storage=storage)
-
 
 # === 🔹 HTTP (web) server ===
 async def start_web_server(port: int):
@@ -154,11 +148,10 @@ async def start_web_server(port: int):
     await site.start()
     logger.info(f"🌐 HTTP server started on port {port}")
 
-
 # === 🔹 Asosiy ishga tushirish funksiyasi ===
 async def main():
     # 1️⃣ Baza ishga tayyorlash
-    await db.init_db(DATABASE_FILE)  # ✅ async ishlash
+    await db.init_db()  # ✅ argument BERILMAYDI
     logger.info("✅ Baza muvaffaqiyatli ishga tayyor.")
 
     # 2️⃣ Routerlarni ulaymiz
@@ -175,13 +168,13 @@ async def main():
     logger.info("🤖 HISOBOT24 bot ishga tushdi (polling).")
     await dp.start_polling(bot)
 
-
 # === 🔹 Dastur ishga tushishi ===
 if __name__ == "__main__":
     try:
         asyncio.run(main())
     except (KeyboardInterrupt, SystemExit):
         logger.info("🛑 Bot to‘xtatildi.")
+
 
 
 
