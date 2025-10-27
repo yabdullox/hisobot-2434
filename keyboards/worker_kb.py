@@ -2,10 +2,9 @@ from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 
 def worker_menu():
     kb = [
-        [KeyboardButton(text="🧾 Hisobot yuborish"), KeyboardButton(text="⏰ Ishni boshladim")],
-        [KeyboardButton(text="🏁 Ishni tugatdim")],
-        [KeyboardButton(text="📷 Tozalash rasmi yuborish"), KeyboardButton(text="📸 Muammo yuborish")],
-        [KeyboardButton(text="📅 Bugungi hisobotlarim"), KeyboardButton(text="💰 Bonus/Jarimalarim")],
-        [KeyboardButton(text="↩️ Menyuga qaytish")]
+        [KeyboardButton("🧾 Hisobot yuborish"), KeyboardButton("⏰ Ishni boshladim")],
+        [KeyboardButton("🏁 Ishni tugatdim")],
+        [KeyboardButton("📷 Tozalash rasmi yuborish"), KeyboardButton("📸 Muammo yuborish")],
+        [KeyboardButton("💰 Bonus/Jarimalarim"), KeyboardButton("↩️ Menyuga qaytish")]
     ]
     return ReplyKeyboardMarkup(keyboard=kb, resize_keyboard=True)
