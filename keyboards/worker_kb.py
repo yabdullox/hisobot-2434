@@ -184,32 +184,77 @@
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 
 
-# === ASOSIY ISHCHI MENYU ===
+# === 🏠 ASOSIY ISHCHI MENYU ===
 def worker_menu():
     kb = [
-        [KeyboardButton("🧾 Hisobot yuborish"), KeyboardButton("⏰ Ishni boshladim")],
-        [KeyboardButton("🏁 Ishni tugatdim")],
-        [KeyboardButton("📷 Tozalash rasmi yuborish"), KeyboardButton("📸 Muammo yuborish")],
-        [KeyboardButton("📦 Mahsulotlarim"), KeyboardButton("📅 Bugungi hisobotlarim")],
-        [KeyboardButton("💰 Bonus/Jarimalarim"), KeyboardButton("↩️ Menyuga qaytish")]
+        [KeyboardButton(text="🧾 Hisobot yuborish"), KeyboardButton(text="⏰ Ishni boshladim")],
+        [KeyboardButton(text="🏁 Ishni tugatdim")],
+        [KeyboardButton(text="📷 Tozalash rasmi yuborish"), KeyboardButton(text="📸 Muammo yuborish")],
+        [KeyboardButton(text="📦 Mahsulotlarim"), KeyboardButton(text="📅 Bugungi hisobotlarim")],
+        [KeyboardButton(text="💰 Bonus/Jarimalarim"), KeyboardButton(text="↩️ Menyuga qaytish")]
     ]
     return ReplyKeyboardMarkup(keyboard=kb, resize_keyboard=True)
 
 
-# === MAHSULOTLAR MENYUSI ===
+# === 📦 MAHSULOTLAR MENYUSI ===
 def product_menu():
     kb = [
-        [KeyboardButton("➕ Mahsulot qo‘shish"), KeyboardButton("❌ Mahsulotni o‘chirish")],
-        [KeyboardButton("📋 Mavjud mahsulotlar"), KeyboardButton("↩️ Menyuga qaytish")]
+        [KeyboardButton(text="➕ Mahsulot qo‘shish"), KeyboardButton(text="❌ Mahsulotni o‘chirish")],
+        [KeyboardButton(text="📋 Mavjud mahsulotlar"), KeyboardButton(text="↩️ Menyuga qaytish")]
     ]
     return ReplyKeyboardMarkup(keyboard=kb, resize_keyboard=True)
 
 
-# === MUAMMO YUBORISH MENYUSI ===
+# === 📤 HISOBOT YUBORISH ===
+def report_menu():
+    kb = [
+        [KeyboardButton(text="✅ Hisobotni yuborish"), KeyboardButton(text="❌ Bekor qilish")],
+        [KeyboardButton(text="↩️ Menyuga qaytish")]
+    ]
+    return ReplyKeyboardMarkup(keyboard=kb, resize_keyboard=True)
+
+
+# === ⏰ ISHNI BOSHLASH MENYUSI ===
+def start_work_menu():
+    kb = [
+        [KeyboardButton(text="📷 Tozalash rasmi yuborish")],
+        [KeyboardButton(text="🏁 Ishni tugatdim")],
+        [KeyboardButton(text="↩️ Menyuga qaytish")]
+    ]
+    return ReplyKeyboardMarkup(keyboard=kb, resize_keyboard=True)
+
+
+# === 🏁 ISHNI TUGATISH (YAKUNIY) MENYUSI ===
+def confirm_end_work_menu():
+    kb = [
+        [KeyboardButton(text="📤 Yakuniy hisobotni yuborish")],
+        [KeyboardButton(text="↩️ Menyuga qaytish")]
+    ]
+    return ReplyKeyboardMarkup(keyboard=kb, resize_keyboard=True)
+
+
+# === 📸 MUAMMO YUBORISH MENYUSI ===
 def problem_menu():
     kb = [
-        [KeyboardButton("📸 Rasm yuborish"), KeyboardButton("📝 Izoh yozish")],
-        [KeyboardButton("↩️ Menyuga qaytish")]
+        [KeyboardButton(text="📸 Rasm yuborish"), KeyboardButton(text="📝 Izoh yozish")],
+        [KeyboardButton(text="↩️ Menyuga qaytish")]
     ]
     return ReplyKeyboardMarkup(keyboard=kb, resize_keyboard=True)
 
+
+# === 💰 BONUS/JARIMALAR MENYUSI ===
+def finance_menu():
+    kb = [
+        [KeyboardButton(text="🎉 Bonuslarim"), KeyboardButton(text="⚠️ Jarimalarim")],
+        [KeyboardButton(text="↩️ Menyuga qaytish")]
+    ]
+    return ReplyKeyboardMarkup(keyboard=kb, resize_keyboard=True)
+
+
+# === 🗓 HISOBOTLAR MENYUSI ===
+def reports_menu():
+    kb = [
+        [KeyboardButton(text="📅 Bugungi hisobotlarim"), KeyboardButton(text="🗓 Umumiy hisobotlarim")],
+        [KeyboardButton(text="↩️ Menyuga qaytish")]
+    ]
+    return ReplyKeyboardMarkup(keyboard=kb, resize_keyboard=True)
