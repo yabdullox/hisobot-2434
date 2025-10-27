@@ -18,7 +18,6 @@ def worker_menu():
             KeyboardButton(text="↩️ Menyuga qaytish")
         ]
     ]
-
     return ReplyKeyboardMarkup(
         keyboard=kb,
         resize_keyboard=True,
