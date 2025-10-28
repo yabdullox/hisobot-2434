@@ -1,7 +1,20 @@
 services:
   - type: web
-    name: hisobot24
+    name: hisobot24-bot
     env: python
+    region: frankfurt
     plan: free
-    buildCommand: pip install -r requirements.txt
-    startCommand: python main.py
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "python main.py"
+    envVars:
+      - key: BOT_TOKEN
+        sync: false
+      - key: SUPERADMIN_ID
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+
+databases:
+  - name: hisobot24
+    plan: free
+    region: frankfurt
