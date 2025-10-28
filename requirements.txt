@@ -8,3 +8,14 @@ aiosqlite
 python-dateutil
 pytz
 xlsxwriter
+aiogram==3.4.1
+python-dotenv
+APScheduler
+pandas
+openpyxl
+SQLAlchemy
+aiosqlite
+python-dateutil
+pytz
+xlsxwriter
+asyncpg
