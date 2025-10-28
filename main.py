@@ -1,143 +1,69 @@
 # main.py
 import asyncio
-import logging
 import os
-from typing import Callable
-
+import logging
 from aiogram import Bot, Dispatcher
-from aiogram.fsm.storage.memory import MemoryStorage
+from aiogram.types import BotCommand
+from dotenv import load_dotenv
+from aiohttp import web
 
-# config.py ichida BOT_TOKEN, SUPERADMIN_ID, DATABASE_URL va boshqalar bo'lishi kerak
-from config import BOT_TOKEN
+# Fayllarni import qilamiz
+from database import init_db
+from handlers import start as start_h, superadmin as superadmin_h, admin as admin_h, worker as worker_h
 
-# Lokal database util
-import database
+load_dotenv()
 
-# handlers routerlarini import qilamiz (har biri `router = Router()` bo'lishi kerak)
-# Agar handler fayllarida modul nomlari boshqacha bo'lsa shu joyni moslashtir
-from handlers import start as start_h
-from handlers import superadmin as superadmin_h
-from handlers import admin as admin_h
-from handlers import worker as worker_h
+BOT_TOKEN = os.getenv("BOT_TOKEN")
 
-# ixtiyoriy: scheduler modul (agar mavjud bo'lsa)
-try:
-    import scheduler as scheduler_mod
-except Exception:
-    scheduler_mod = None
+logging.basicConfig(level=logging.INFO)
 
-# logging sozlamalari
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s",
-)
-logger = logging.getLogger("HISOBOT24")
+bot = Bot(token=BOT_TOKEN)
+dp = Dispatcher()
+
+# Handlers ro‘yxati
+dp.include_router(start_h.router)
+dp.include_router(superadmin_h.router)
+dp.include_router(admin_h.router)
+dp.include_router(worker_h.router)
 
 
-async def _maybe_start_scheduler(bot: Bot):
-    """
-    Agar projectda `scheduler.start_scheduler` mavjud bo'lsa chaqirishga harakat qiladi.
-    Funksiya bot argumentini kutishi yoki kutmasligi mumkin — ikkala holatni qoplaymiz.
-    """
-    if not scheduler_mod:
-        logger.info("Scheduler modul topilmadi — o'tkazib yuborilyapti.")
-        return
+async def on_startup():
+    init_db()
+    logging.info("✅ Database initialized successfully.")
+    await bot.set_my_commands([
+        BotCommand(command="start", description="Botni ishga tushirish")
+    ])
 
-    start_fn = getattr(scheduler_mod, "start_scheduler", None)
-    if not start_fn or not isinstance(start_fn, Callable):
-        logger.info("scheduler.start_scheduler topilmadi yoki callable emas.")
-        return
 
-    try:
-        # Avval botni argument bilan chaqirib ko'ramiz (agar u qabul qilsa)
-        logger.info("Schedulerni bot bilan ishga tushurishga harakat qilinmoqda...")
-        maybe = start_fn(bot)
-        # Agar start_fn sync bo'lsa va natija coroutine bo'lsa await qilamiz
-        if asyncio.iscoroutine(maybe):
-            await maybe
-        logger.info("Scheduler ishga tushirildi (bot argument bilan).")
-        return
-    except TypeError:
-        # Funksiya bot argumentini qabul qilmaydi — argumentsiz chaqiramiz
-        try:
-            logger.info("Schedulerni argumentsiz ishga tushurishga harakat qilinmoqda...")
-            maybe = start_fn()
-            if asyncio.iscoroutine(maybe):
-                await maybe
-            logger.info("Scheduler ishga tushirildi (argumentsiz).")
-            return
-        except Exception as e:
-            logger.exception("Schedulerni ishga tushirishda xato (argumentsiz): %s", e)
-            return
-    except Exception as e:
-        logger.exception("Schedulerni ishga tushirishda xato: %s", e)
-        return
+async def run_polling():
+    """Asosiy polling jarayoni."""
+    await on_startup()
+    await dp.start_polling(bot)
+
+
+async def fake_web_server():
+    """Render uchun “port ochildi” deb ko‘rsatadigan soxta web server."""
+    async def handle(request):
+        return web.Response(text="✅ Hisobot24 bot ishlayapti!")
+
+    app = web.Application()
+    app.router.add_get("/", handle)
+    runner = web.AppRunner(app)
+    await runner.setup()
+
+    port = int(os.environ.get("PORT", 10000))  # Render portni shu o‘zi beradi
+    site = web.TCPSite(runner, "0.0.0.0", port)
+    await site.start()
+    logging.info(f"🌐 Fake web server run on port {port}")
 
 
 async def main():
-    if not BOT_TOKEN:
-        logger.error("BOT_TOKEN topilmadi. .env yoki config.py ni tekshiring.")
-        return
-
-    # Database jadvallarini yaratish / init
-    try:
-        database.init_db()
-    except Exception as e:
-        logger.exception("Database initda xato: %s", e)
-        # Agar init xato bersa ham davom ettirmoqchi bo'lsangiz, pass qilishingiz mumkin.
-        # return
-
-    bot = Bot(token=BOT_TOKEN, parse_mode="HTML")
-    storage = MemoryStorage()
-    dp = Dispatcher(storage=storage)
-
-    # Routerlarni ro'yxatdan o'tkazamiz
-    try:
-        dp.include_router(start_h.router)
-    except Exception as e:
-        logger.exception("start routerni qo'shishda xato: %s", e)
-
-    try:
-        dp.include_router(superadmin_h.router)
-    except Exception as e:
-        logger.exception("superadmin routerni qo'shishda xato: %s", e)
-
-    try:
-        dp.include_router(admin_h.router)
-    except Exception as e:
-        logger.exception("admin routerni qo'shishda xato: %s", e)
-
-    try:
-        dp.include_router(worker_h.router)
-    except Exception as e:
-        logger.exception("worker routerni qo'shishda xato: %s", e)
-
-    # Agar boshqa universal routerlar bor bo'lsa shu yerda qo'sh
-
-    # Scheduler (agar bo'lsa) ishga tushuramiz
-    try:
-        await _maybe_start_scheduler(bot)
-    except Exception as e:
-        logger.exception("Schedulerni ishga tushirishda umumiy xato: %s", e)
-
-    # Pollingni boshlash
-    try:
-        logger.info("🚀 HISOBOT24 BOT ishga tushmoqda (polling)...")
-        await dp.start_polling(bot)
-    finally:
-        # Shutdown
-        try:
-            await bot.session.close()
-        except Exception:
-            pass
-        await storage.close()
-        logger.info("Bot to'xtadi, storage yopildi.")
+    """Polling va soxta web serverni parallel ishga tushiramiz."""
+    await asyncio.gather(
+        fake_web_server(),  # Render uchun port ochish
+        run_polling()       # Telegram uchun polling
+    )
 
 
 if __name__ == "__main__":
-    try:
-        asyncio.run(main())
-    except (KeyboardInterrupt, SystemExit):
-        logger.info("Dastur to'xtatildi.")
-    except Exception as e:
-        logger.exception("main.run da xato: %s", e)
+    asyncio.run(main())
