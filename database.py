@@ -3,7 +3,6 @@ from sqlalchemy.exc import SQLAlchemyError
 from config import DATABASE_URL
 
 # ⚙️ PostgreSQL ulanish
-# SQLite emas, endi PostgreSQL ishlatiladi
 engine = create_engine(DATABASE_URL, future=True, pool_pre_ping=True)
 
 
@@ -29,7 +28,7 @@ def fetchone(query: str, params: dict = None):
 
 
 def init_db():
-    """PostgreSQL uchun jadvallarni yaratish."""
+    """Barcha jadvallarni yaratadi."""
     stmts = [
         """
         CREATE TABLE IF NOT EXISTS users (
@@ -51,7 +50,7 @@ def init_db():
         """
         CREATE TABLE IF NOT EXISTS reports (
             id SERIAL PRIMARY KEY,
-            user_id INTEGER NOT NULL,
+            user_id BIGINT NOT NULL,
             branch_id INTEGER,
             date DATE NOT NULL,
             start_time TIME,
@@ -66,7 +65,7 @@ def init_db():
         """
         CREATE TABLE IF NOT EXISTS problems (
             id SERIAL PRIMARY KEY,
-            user_id INTEGER NOT NULL,
+            user_id BIGINT NOT NULL,
             branch_id INTEGER,
             report_id INTEGER,
             description TEXT,
@@ -77,7 +76,7 @@ def init_db():
         """
         CREATE TABLE IF NOT EXISTS cleaning_photos (
             id SERIAL PRIMARY KEY,
-            user_id INTEGER NOT NULL,
+            user_id BIGINT NOT NULL,
             branch_id INTEGER,
             report_id INTEGER,
             file_id TEXT,
@@ -87,25 +86,25 @@ def init_db():
         """
         CREATE TABLE IF NOT EXISTS fines (
             id SERIAL PRIMARY KEY,
-            user_id INTEGER NOT NULL,
+            user_id BIGINT NOT NULL,
             branch_id INTEGER,
-            amount NUMERIC(12,2) NOT NULL,
+            amount REAL NOT NULL,
             reason TEXT,
-            created_by INTEGER,
+            created_by BIGINT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            auto BOOLEAN DEFAULT FALSE
+            auto INTEGER DEFAULT 0
         )
         """,
         """
         CREATE TABLE IF NOT EXISTS bonuses (
             id SERIAL PRIMARY KEY,
-            user_id INTEGER NOT NULL,
+            user_id BIGINT NOT NULL,
             branch_id INTEGER,
-            amount NUMERIC(12,2) NOT NULL,
+            amount REAL NOT NULL,
             reason TEXT,
-            created_by INTEGER,
+            created_by BIGINT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            auto BOOLEAN DEFAULT FALSE
+            auto INTEGER DEFAULT 0
         )
         """
     ]
@@ -117,6 +116,6 @@ def init_db():
             conn.execute(
                 text("CREATE UNIQUE INDEX IF NOT EXISTS idx_reports_user_date ON reports(user_id, date)")
             )
-        print("✅ PostgreSQL Database initialized successfully.")
+        print("✅ Database initialized successfully (PostgreSQL, BIGINT fixed).")
     except SQLAlchemyError as e:
         print("❌ Database initialization error:", e)
