@@ -1,10 +1,10 @@
 aiogram==3.4.1
 python-dotenv
-APScheduler
-pandas
-openpyxl
 SQLAlchemy
 asyncpg
+psycopg2-binary
+pandas
+openpyxl
+xlsxwriter
 python-dateutil
 pytz
-xlsxwriter
