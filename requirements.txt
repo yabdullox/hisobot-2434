@@ -19,3 +19,4 @@ python-dateutil
 pytz
 xlsxwriter
 asyncpg
+python-dotenv
