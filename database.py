@@ -1,10 +1,10 @@
-# database.py
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import SQLAlchemyError
 from config import DATABASE_URL
 
-# ⚙️ SQLite ulanish
-engine = create_engine(DATABASE_URL, future=True)
+# ⚙️ PostgreSQL ulanish
+# SQLite emas, endi PostgreSQL ishlatiladi
+engine = create_engine(DATABASE_URL, future=True, pool_pre_ping=True)
 
 
 def execute(query: str, params: dict = None):
@@ -29,11 +29,11 @@ def fetchone(query: str, params: dict = None):
 
 
 def init_db():
-    """Barcha jadvallarni yaratadi."""
+    """PostgreSQL uchun jadvallarni yaratish."""
     stmts = [
         """
         CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             telegram_id BIGINT UNIQUE,
             full_name TEXT,
             role TEXT NOT NULL,
@@ -43,14 +43,14 @@ def init_db():
         """,
         """
         CREATE TABLE IF NOT EXISTS branches (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             name TEXT NOT NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
         """,
         """
         CREATE TABLE IF NOT EXISTS reports (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             user_id INTEGER NOT NULL,
             branch_id INTEGER,
             date DATE NOT NULL,
@@ -65,7 +65,7 @@ def init_db():
         """,
         """
         CREATE TABLE IF NOT EXISTS problems (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             user_id INTEGER NOT NULL,
             branch_id INTEGER,
             report_id INTEGER,
@@ -76,7 +76,7 @@ def init_db():
         """,
         """
         CREATE TABLE IF NOT EXISTS cleaning_photos (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             user_id INTEGER NOT NULL,
             branch_id INTEGER,
             report_id INTEGER,
@@ -86,26 +86,26 @@ def init_db():
         """,
         """
         CREATE TABLE IF NOT EXISTS fines (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             user_id INTEGER NOT NULL,
             branch_id INTEGER,
-            amount REAL NOT NULL,
+            amount NUMERIC(12,2) NOT NULL,
             reason TEXT,
             created_by INTEGER,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            auto INTEGER DEFAULT 0
+            auto BOOLEAN DEFAULT FALSE
         )
         """,
         """
         CREATE TABLE IF NOT EXISTS bonuses (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             user_id INTEGER NOT NULL,
             branch_id INTEGER,
-            amount REAL NOT NULL,
+            amount NUMERIC(12,2) NOT NULL,
             reason TEXT,
             created_by INTEGER,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            auto INTEGER DEFAULT 0
+            auto BOOLEAN DEFAULT FALSE
         )
         """
     ]
@@ -117,6 +117,6 @@ def init_db():
             conn.execute(
                 text("CREATE UNIQUE INDEX IF NOT EXISTS idx_reports_user_date ON reports(user_id, date)")
             )
-        print("✅ Database initialized successfully.")
+        print("✅ PostgreSQL Database initialized successfully.")
     except SQLAlchemyError as e:
         print("❌ Database initialization error:", e)
