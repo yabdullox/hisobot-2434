@@ -18,3 +18,9 @@ databases:
   - name: hisobot24
     plan: free
     region: frankfurt
+services:
+  - type: worker
+    name: hisobot24
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: python main.py
