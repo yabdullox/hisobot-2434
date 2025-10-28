@@ -1,26 +1,30 @@
 services:
-  - type: web
-    name: hisobot24-bot
-    env: python
-    region: frankfurt
-    plan: free
-    buildCommand: "pip install -r requirements.txt"
-    startCommand: "python main.py"
-    envVars:
-      - key: BOT_TOKEN
-        sync: false
-      - key: SUPERADMIN_ID
-        sync: false
-      - key: DATABASE_URL
-        sync: false
-
-databases:
-  - name: hisobot24
-    plan: free
-    region: frankfurt
-services:
   - type: worker
     name: hisobot24
     env: python
-    buildCommand: pip install -r requirements.txt
+    plan: free
+
+    buildCommand: |
+      pip install --upgrade pip
+      pip install -r requirements.txt
+
     startCommand: python main.py
+
+    envVars:
+      - key: BOT_TOKEN
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: SUPERADMIN_ID
+        sync: false
+
+    # 🔄 Build keshlashni yoqamiz (tezroq deploy)
+    autoDeploy: true
+    preDeployCommand: echo "🚀 HISOBOT24 build boshlanyapti..."
+
+    # 🕒 Worker timeout va health
+    healthCheckPath: null
+    disk:
+      name: hisobot24_data
+      mountPath: /data
+      sizeGB: 1
