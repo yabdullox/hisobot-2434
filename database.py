@@ -1,9 +1,15 @@
+# database.py
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import SQLAlchemyError
 from config import DATABASE_URL
 
-# ⚙️ PostgreSQL ulanish
-engine = create_engine(DATABASE_URL, future=True, pool_pre_ping=True)
+
+# ⚙️ PostgreSQL ulanish (async emas, polling uchun mos)
+engine = create_engine(
+    DATABASE_URL,
+    future=True,
+    pool_pre_ping=True  # connection uzilib qolsa avtomatik reconnect
+)
 
 
 def execute(query: str, params: dict = None):
@@ -28,7 +34,7 @@ def fetchone(query: str, params: dict = None):
 
 
 def init_db():
-    """Barcha jadvallarni yaratadi."""
+    """Barcha jadvallarni yaratadi (agar mavjud bo‘lmasa)."""
     stmts = [
         """
         CREATE TABLE IF NOT EXISTS users (
@@ -113,9 +119,24 @@ def init_db():
         with engine.begin() as conn:
             for s in stmts:
                 conn.execute(text(s))
+            # 🔄 Unikal indeks (ishchi bir kunda bitta hisobot)
             conn.execute(
                 text("CREATE UNIQUE INDEX IF NOT EXISTS idx_reports_user_date ON reports(user_id, date)")
             )
-        print("✅ Database initialized successfully (PostgreSQL, BIGINT fixed).")
+
+            # 🔧 Tipni avtomatik BIGINT ga moslab qo‘yish (agar eski jadval bo‘lsa)
+            fix_types = [
+                "ALTER TABLE users ALTER COLUMN telegram_id TYPE BIGINT USING telegram_id::bigint",
+                "ALTER TABLE reports ALTER COLUMN user_id TYPE BIGINT USING user_id::bigint",
+                "ALTER TABLE fines ALTER COLUMN user_id TYPE BIGINT USING user_id::bigint",
+                "ALTER TABLE bonuses ALTER COLUMN user_id TYPE BIGINT USING user_id::bigint"
+            ]
+            for fix in fix_types:
+                try:
+                    conn.execute(text(fix))
+                except Exception:
+                    pass  # agar allaqachon o‘zgartirilgan bo‘lsa — e’tibor bermaymiz
+
+        print("✅ Database initialized successfully (PostgreSQL + BIGINT fixed).")
     except SQLAlchemyError as e:
         print("❌ Database initialization error:", e)
