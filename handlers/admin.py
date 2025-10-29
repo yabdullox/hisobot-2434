@@ -185,6 +185,32 @@ async def cancel_delete(callback: types.CallbackQuery, state: FSMContext):
     await callback.message.edit_text("❌ O‘chirish bekor qilindi.", reply_markup=None)
     await callback.message.answer("Asosiy menyu:", reply_markup=get_admin_kb())
 
+# ===============================
+# ➕ Adminni filialga biriktirish
+# ===============================
+@router.message(Command("start"))
+async def admin_start(message: types.Message):
+    admin_id = message.from_user.id
+    admin = database.fetchone("SELECT * FROM users WHERE telegram_id=:tid", {"tid": admin_id})
+
+    if not admin:
+        database.execute("""
+            INSERT INTO users (telegram_id, full_name, role)
+            VALUES (:tid, :name, 'admin')
+        """, {"tid": admin_id, "name": message.from_user.full_name})
+
+    branches = database.get_admin_branches(admin_id)
+
+    if not branches:
+        await message.answer("❌ Siz hali hech qaysi filialga biriktirilmagansiz.")
+        return
+
+    text = "👋 <b>Salom, Admin!</b>\nSiz boshqarayotgan filiallar:\n\n"
+    for b in branches:
+        text += f"🏢 <b>{b['name']}</b> (ID: {b['id']})\n"
+    await message.answer(text, parse_mode="HTML", reply_markup=get_admin_kb())
+
+
 # =================== JARIMA / BONUS YOZISH ===================
 from aiogram import F
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
