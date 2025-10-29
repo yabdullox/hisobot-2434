@@ -158,11 +158,17 @@ def clear_all_data():
     except Exception as e:
         logging.error(f"❌ Failed to clear tables: {e}")
 
+if __name__ == "__main__":
+    print("🚨 WARNING: Clearing all data from database...")
+    clear_all_data()
+    init_db()
+    create_notes_table()
+    print("✅ Database reset successfully. All tables are empty now.")
 
 # ===============================
 # 🔹 Barcha jadvallarni ishga tushirish
 # ===============================
-if __name__ == "__main__":
-    init_db()
-    create_notes_table()
-    print("✅ Database and tables initialized successfully.")
+# if __name__ == "__main__":
+#     init_db()
+#     create_notes_table()
+#     print("✅ Database and tables initialized successfully.")
