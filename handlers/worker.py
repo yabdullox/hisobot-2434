@@ -2,8 +2,10 @@ from aiogram import Router, F, types
 from aiogram.types import ReplyKeyboardRemove
 from datetime import datetime, date, time
 from config import SUPERADMIN_ID, ADMIN_ID
-import database
 from keyboards.worker_kb import get_worker_kb, get_bonus_kb
+from aiogram.types import Message
+from database import add_report
+import database
 import os
 
 router = Router()
