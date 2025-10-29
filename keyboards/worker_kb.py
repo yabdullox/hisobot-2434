@@ -1,13 +1,33 @@
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 
-# 👷 Ishchi menyusi uchun keyboard
+
+# 👷‍♂️ Ishchi menyusi
 def get_worker_kb():
     kb = [
-        [KeyboardButton(text="🕘 Ishni boshladim"), KeyboardButton(text="🏁 Ishni tugatdim")],
-        [KeyboardButton(text="🧹 Tozalash rasmi yuborish"), KeyboardButton(text="💬 Muammo yuborish")],
-        [KeyboardButton(text="💰 Bonus/Jarimalarim"), KeyboardButton(text="📓 Eslatmalarim")],
-        [KeyboardButton(text="⬅️ Menyuga qaytish")]
+        # 🔹 Ish jarayoni
+        [
+            KeyboardButton(text="🕘 Ishni boshladim"),
+            KeyboardButton(text="🏁 Ishni tugatdim")
+        ],
+
+        # 🔹 Tozalash va muammo
+        [
+            KeyboardButton(text="🧹 Tozalash rasmi yuborish"),
+            KeyboardButton(text="💬 Muammo yuborish")
+        ],
+
+        # 🔹 Qo‘shimcha ma’lumotlar
+        [
+            KeyboardButton(text="💰 Bonus / Jarimalarim"),
+            KeyboardButton(text="📓 Eslatmalarim")
+        ],
+
+        # 🔹 Orqaga chiqish
+        [
+            KeyboardButton(text="⬅️ Menyuga qaytish")
+        ]
     ]
+
     return ReplyKeyboardMarkup(
         keyboard=kb,
         resize_keyboard=True,
@@ -15,11 +35,16 @@ def get_worker_kb():
     )
 
 
-# 💰 Bonus/Jarima bo‘limi uchun keyboard
+# 💰 Bonus / Jarima menyusi
 def get_bonus_kb():
     kb = [
-        [KeyboardButton(text="📅 Bugungi"), KeyboardButton(text="📋 Umumiy")],
-        [KeyboardButton(text="⬅️ Orqaga")]
+        [
+            KeyboardButton(text="📅 Bugungi holat"),
+            KeyboardButton(text="📋 Umumiy ro‘yxat")
+        ],
+        [
+            KeyboardButton(text="⬅️ Orqaga")
+        ]
     ]
     return ReplyKeyboardMarkup(
         keyboard=kb,
@@ -28,10 +53,30 @@ def get_bonus_kb():
     )
 
 
-# 🏠 Asosiy menyuga qaytish tugmasi
+# 📓 Eslatma bo‘limi menyusi
+def get_notes_kb():
+    kb = [
+        [
+            KeyboardButton(text="📝 Eslatma yozish"),
+            KeyboardButton(text="📖 Eslatmalarimni ko‘rish")
+        ],
+        [
+            KeyboardButton(text="⬅️ Orqaga")
+        ]
+    ]
+    return ReplyKeyboardMarkup(
+        keyboard=kb,
+        resize_keyboard=True,
+        one_time_keyboard=False
+    )
+
+
+# 🏠 Asosiy menyuga qaytish
 def get_main_kb():
     kb = [
-        [KeyboardButton(text="👷 Ishchi menyusi")]
+        [
+            KeyboardButton(text="👷 Ishchi menyusiga qaytish")
+        ]
     ]
     return ReplyKeyboardMarkup(
         keyboard=kb,
