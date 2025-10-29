@@ -22,6 +22,7 @@ def get_superadmin_kb():
         [
             KeyboardButton(text="👥 Adminlar ro‘yxati"),
             KeyboardButton(text="➕ Admin qo‘shish")
+            [KeyboardButton(text="➕ Adminni filialga biriktirish")],
         ],
         [
             KeyboardButton(text="🗑️ Adminni o‘chirish")
