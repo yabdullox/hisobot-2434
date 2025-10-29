@@ -45,30 +45,37 @@ async def start_work(message: Message):
     today = now.date()
     start_time = now.strftime("%H:%M:%S")
 
-    existing = database.fetchone("SELECT id FROM reports WHERE user_id=%s AND date=%s", (user_id, today))
+    existing = database.fetchone(
+        "SELECT id FROM reports WHERE user_id=:u AND date=:d",
+        {"u": user_id, "d": today}
+    )
     if existing:
         await message.answer("⚠️ Siz bugun ishni allaqachon boshlagansiz.")
         return
 
-    database.query("INSERT INTO reports (user_id, date, start_time) VALUES (%s, %s, %s)", (user_id, today, start_time))
+    database.execute("""
+        INSERT INTO reports (user_id, date, start_time)
+        VALUES (:u, :d, :t)
+    """, {"u": user_id, "d": today, "t": start_time})
 
+    # Bonus / jarima
     ish_boshlash_vaqti = time(9, 0)
     farq_daqiqa = (datetime.combine(today, now.time()) - datetime.combine(today, ish_boshlash_vaqti)).total_seconds() / 60
 
     if farq_daqiqa > 10:
         penalty = round((farq_daqiqa / 60) * 10000)
-        database.query(
-            "INSERT INTO fines (user_id, amount, reason, created_by, auto) VALUES (%s, %s, %s, %s, TRUE)",
-            (user_id, penalty, "Kech qolganligi uchun avtomatik jarima", user_id)
-        )
-        await message.answer(f"⚠️ {farq_daqiqa:.0f} daqiqa kech keldingiz.\n❌ Jarima: {penalty:,} so‘m.")
+        database.execute("""
+            INSERT INTO fines (user_id, amount, reason, created_by, auto)
+            VALUES (:u, :a, :r, :c, TRUE)
+        """, {"u": user_id, "a": penalty, "r": "Kech qolganligi uchun avtomatik jarima", "c": user_id})
+        await message.answer(f"⚠️ Siz {farq_daqiqa:.0f} daqiqa kech keldingiz.\n❌ Jarima: {penalty:,} so‘m.")
     elif farq_daqiqa < 0:
         bonus = round((abs(farq_daqiqa) / 60) * 10000)
-        database.query(
-            "INSERT INTO bonuses (user_id, amount, reason, created_by, auto) VALUES (%s, %s, %s, %s, TRUE)",
-            (user_id, bonus, "Erta kelganligi uchun avtomatik bonus", user_id)
-        )
-        await message.answer(f"🌅 {abs(farq_daqiqa):.0f} daqiqa erta keldingiz.\n✅ Bonus: {bonus:,} so‘m.")
+        database.execute("""
+            INSERT INTO bonuses (user_id, amount, reason, created_by, auto)
+            VALUES (:u, :a, :r, :c, TRUE)
+        """, {"u": user_id, "a": bonus, "r": "Erta kelganligi uchun avtomatik bonus", "c": user_id})
+        await message.answer(f"🌅 Siz {abs(farq_daqiqa):.0f} daqiqa erta keldingiz.\n✅ Bonus: {bonus:,} so‘m.")
 
     await message.answer(f"🕘 Ish boshlanish vaqti saqlandi: {start_time}")
 
@@ -90,7 +97,10 @@ async def finish_work(message: Message):
     now = datetime.now()
     time_str = now.strftime("%H:%M:%S")
 
-    database.query("UPDATE users SET end_time=%s WHERE telegram_id=%s", (time_str, user_id))
+    database.execute(
+        "UPDATE reports SET end_time=:t WHERE user_id=:u AND date=:d",
+        {"t": time_str, "u": user_id, "d": date.today()}
+    )
 
     await message.answer(
         f"🏁 Ish tugash vaqti saqlandi: <b>{time_str}</b>\n\n"
@@ -100,7 +110,7 @@ async def finish_work(message: Message):
 
 
 # ===============================
-# 🧾 Bugungi hisobotni yuborish
+# 🧾 Bugungi hisobot
 # ===============================
 @router.message(F.text == "🧾 Bugungi hisobotni yuborish")
 async def ask_report_text(message: Message, state: FSMContext):
@@ -114,20 +124,18 @@ async def receive_report(message: Message, state: FSMContext):
     text = message.text
     now = datetime.now()
 
-    user = database.fetchone("SELECT fullname, branch FROM users WHERE telegram_id=:tid", {"tid": user_id})
+    user = database.fetchone("SELECT full_name, branch_id FROM users WHERE telegram_id=:tid", {"tid": user_id})
     if not user:
         await message.answer("⚠️ Siz ro‘yxatdan o‘tmagansiz.")
         return
 
-    full_name = user["fullname"]
-    branch = user["branch"]
     date_str = now.strftime("%Y-%m-%d")
     time_str = now.strftime("%H:%M:%S")
 
     report_message = (
         f"🧾 <b>Yangi ishchi hisobot!</b>\n\n"
-        f"👷 Ishchi: <b>{full_name}</b>\n"
-        f"🏢 Filial: <b>{branch}</b>\n"
+        f"👷 Ishchi: <b>{user['full_name']}</b>\n"
+        f"🏢 Filial ID: <b>{user['branch_id']}</b>\n"
         f"🆔 Telegram ID: <code>{user_id}</code>\n\n"
         f"📅 Sana: <b>{date_str}</b>\n"
         f"🕘 Vaqt: <b>{time_str}</b>\n\n"
@@ -146,7 +154,7 @@ async def receive_report(message: Message, state: FSMContext):
 
 
 # ===============================
-# 💬 Muammo yuborish (FSM bilan)
+# 💬 Muammo yuborish
 # ===============================
 @router.message(F.text == "💬 Muammo yuborish")
 async def start_problem(message: Message, state: FSMContext):
@@ -156,34 +164,36 @@ async def start_problem(message: Message, state: FSMContext):
 
 @router.message(StateFilter(ProblemFSM.waiting_description))
 async def receive_problem_text(message: Message, state: FSMContext):
-    text = message.text
-    await state.update_data(description=text)
-    await message.answer("📸 Agar surat yubormoqchi bo‘lsangiz, hozir yuboring.\nAgar kerak bo‘lmasa — <b>✅ Tayyor</b> deb yozing.", parse_mode="HTML")
+    await state.update_data(description=message.text)
+    await message.answer("📸 Agar surat yubormoqchi bo‘lsangiz, hozir yuboring.\nAgar kerak bo‘lmasa — ✅ <b>Tayyor</b> deb yozing.", parse_mode="HTML")
     await state.set_state(ProblemFSM.waiting_photo)
 
 
 @router.message(StateFilter(ProblemFSM.waiting_photo), F.photo)
 async def receive_problem_photo(message: Message, state: FSMContext):
     data = await state.get_data()
-    description = data.get("description")
+    desc = data.get("description")
     photo_id = message.photo[-1].file_id
     user_id = message.from_user.id
-    user = database.fetchone("SELECT fullname, branch FROM users WHERE telegram_id=:tid", {"tid": user_id})
     now = datetime.now()
 
-    problem_text = (
+    user = database.fetchone("SELECT full_name, branch_id FROM users WHERE telegram_id=:tid", {"tid": user_id})
+    if not user:
+        await message.answer("⚠️ Siz ro‘yxatdan o‘tmagansiz.")
+        return
+
+    msg = (
         f"⚠️ <b>Yangi muammo xabari!</b>\n\n"
-        f"👷 Ishchi: <b>{user['fullname']}</b>\n"
-        f"🏢 Filial: <b>{user['branch']}</b>\n"
+        f"👷 Ishchi: <b>{user['full_name']}</b>\n"
+        f"🏢 Filial ID: <b>{user['branch_id']}</b>\n"
         f"🆔 ID: <code>{user_id}</code>\n"
         f"📅 Sana: <b>{now.strftime('%Y-%m-%d')}</b>\n🕒 Vaqt: <b>{now.strftime('%H:%M:%S')}</b>\n\n"
-        f"💬 Tavsif:\n{description}"
+        f"💬 Tavsif:\n{desc}"
     )
 
-    admins = [int(x.strip()) for x in os.getenv("SUPERADMIN_ID", str(SUPERADMIN_ID)).split(",")]
-    for admin_id in admins:
+    for admin_id in [int(x.strip()) for x in os.getenv("SUPERADMIN_ID", str(SUPERADMIN_ID)).split(",")]:
         try:
-            await message.bot.send_photo(admin_id, photo_id, caption=problem_text, parse_mode="HTML")
+            await message.bot.send_photo(admin_id, photo_id, caption=msg, parse_mode="HTML")
         except:
             pass
 
@@ -193,26 +203,26 @@ async def receive_problem_photo(message: Message, state: FSMContext):
 
 @router.message(StateFilter(ProblemFSM.waiting_photo), F.text)
 async def finish_problem(message: Message, state: FSMContext):
-    if message.text.lower() in ["✅ tayyor", "tayyor", "ok", "done"]:
+    text = message.text.lower()
+    if text in ["✅ tayyor", "tayyor", "done", "ok"]:
         data = await state.get_data()
-        description = data.get("description")
+        desc = data.get("description")
         user_id = message.from_user.id
-        user = database.fetchone("SELECT fullname, branch FROM users WHERE telegram_id=:tid", {"tid": user_id})
         now = datetime.now()
+        user = database.fetchone("SELECT full_name, branch_id FROM users WHERE telegram_id=:tid", {"tid": user_id})
 
-        problem_text = (
+        msg = (
             f"⚠️ <b>Yangi muammo xabari!</b>\n\n"
-            f"👷 Ishchi: <b>{user['fullname']}</b>\n"
-            f"🏢 Filial: <b>{user['branch']}</b>\n"
+            f"👷 Ishchi: <b>{user['full_name']}</b>\n"
+            f"🏢 Filial ID: <b>{user['branch_id']}</b>\n"
             f"🆔 ID: <code>{user_id}</code>\n"
             f"📅 Sana: <b>{now.strftime('%Y-%m-%d')}</b>\n🕒 Vaqt: <b>{now.strftime('%H:%M:%S')}</b>\n\n"
-            f"💬 Tavsif:\n{description}"
+            f"💬 Tavsif:\n{desc}"
         )
 
-        admins = [int(x.strip()) for x in os.getenv("SUPERADMIN_ID", str(SUPERADMIN_ID)).split(",")]
-        for admin_id in admins:
+        for admin_id in [int(x.strip()) for x in os.getenv("SUPERADMIN_ID", str(SUPERADMIN_ID)).split(",")]:
             try:
-                await message.bot.send_message(admin_id, problem_text, parse_mode="HTML")
+                await message.bot.send_message(admin_id, msg, parse_mode="HTML")
             except:
                 pass
 
