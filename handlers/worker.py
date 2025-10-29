@@ -114,7 +114,7 @@ async def receive_report(message: Message, state: FSMContext):
     text = message.text
     now = datetime.now()
 
-    user = database.fetchone("SELECT fullname, branch FROM users WHERE telegram_id=%s", (user_id,))
+    user = database.fetchone("SELECT fullname, branch FROM users WHERE telegram_id=:tid", {"tid": user_id})
     if not user:
         await message.answer("⚠️ Siz ro‘yxatdan o‘tmagansiz.")
         return
@@ -168,7 +168,7 @@ async def receive_problem_photo(message: Message, state: FSMContext):
     description = data.get("description")
     photo_id = message.photo[-1].file_id
     user_id = message.from_user.id
-    user = database.fetchone("SELECT fullname, branch FROM users WHERE telegram_id=%s", (user_id,))
+    user = database.fetchone("SELECT fullname, branch FROM users WHERE telegram_id=:tid", {"tid": user_id})
     now = datetime.now()
 
     problem_text = (
@@ -197,7 +197,7 @@ async def finish_problem(message: Message, state: FSMContext):
         data = await state.get_data()
         description = data.get("description")
         user_id = message.from_user.id
-        user = database.fetchone("SELECT fullname, branch FROM users WHERE telegram_id=%s", (user_id,))
+        user = database.fetchone("SELECT fullname, branch FROM users WHERE telegram_id=:tid", {"tid": user_id})
         now = datetime.now()
 
         problem_text = (
