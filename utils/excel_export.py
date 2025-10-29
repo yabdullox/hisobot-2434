@@ -1,7 +1,9 @@
+import os
+from datetime import datetime
+
 import pandas as pd
 import xlsxwriter
-from datetime import datetime
-import os
+from xlsxwriter.utility import xl_col_to_name
 
 def export_reports_to_excel(reports, branch_name="Barcha Filiallar", report_type="Umumiy Hisobot"):
     """
@@ -73,15 +75,23 @@ def export_reports_to_excel(reports, branch_name="Barcha Filiallar", report_type
         })
 
         # ====== Sarlavha ======
-        worksheet.merge_range("A1:H1", "🧾 HISOBOT24 — Ishchi Hisobotlar", title_format)
-        worksheet.merge_range("A2:H2", f"📁 Hisobot turi: {report_type}", subtitle_format)
-        worksheet.merge_range("A3:H3", f"🏢 Filial: {branch_name}", subtitle_format)
-        worksheet.merge_range("A4:H4", f"📅 Yaratilgan sana: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", subtitle_format)
-        worksheet.merge_range("A5:H5", " ", subtitle_format)
+        col_count = max(len(df.columns), 1)
+        last_col_letter = xl_col_to_name(col_count - 1)
+        header_range = f"A{{row}}:{last_col_letter}{{row}}"
+
+        worksheet.merge_range(header_range.format(row=1), "🧾 HISOBOT24 — Ishchi Hisobotlar", title_format)
+        worksheet.merge_range(header_range.format(row=2), f"📁 Hisobot turi: {report_type}", subtitle_format)
+        worksheet.merge_range(header_range.format(row=3), f"🏢 Filial: {branch_name}", subtitle_format)
+        worksheet.merge_range(
+            header_range.format(row=4),
+            f"📅 Yaratilgan sana: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+            subtitle_format,
+        )
+        worksheet.merge_range(header_range.format(row=5), " ", subtitle_format)
 
         # ====== Jadval ustunlari ======
         for col_num, value in enumerate(df.columns.values):
-            worksheet.write(7, col_num, value, header_format)
+            worksheet.write(7, col_num, str(value), header_format)
 
         # Jadval qiymatlarini yozish
         for row in range(len(df)):
@@ -90,13 +100,16 @@ def export_reports_to_excel(reports, branch_name="Barcha Filiallar", report_type
 
         # Ustun kengliklarini avtomatik sozlash
         for i, col in enumerate(df.columns):
-            max_len = max(df[col].astype(str).map(len).max(), len(col))
+            column_series = df[col].astype(str)
+            max_len = max(column_series.map(len).max(), len(str(col)))
             worksheet.set_column(i, i, min(max_len + 3, 40))
 
         # ====== Footer (pastda) ======
-        last_row = len(df) + 10
-        worksheet.merge_range(f"A{last_row}:H{last_row}", 
-                              "📌 Ushbu hisobot HISOBOT24 tizimi tomonidan avtomatik yaratildi.",
-                              footer_format)
+        footer_row = len(df) + 10
+        worksheet.merge_range(
+            header_range.format(row=footer_row),
+            "📌 Ushbu hisobot HISOBOT24 tizimi tomonidan avtomatik yaratildi.",
+            footer_format
+        )
 
     return file_path

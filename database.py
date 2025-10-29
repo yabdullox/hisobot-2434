@@ -18,6 +18,14 @@ def execute(query: str, params: dict = None):
         conn.execute(text(query), params or {})
 
 
+def execute_returning(query: str, params: dict = None):
+    """INSERT ... RETURNING kabi so'rovlar uchun birinchi qiymatni qaytaradi."""
+    with engine.begin() as conn:
+        result = conn.execute(text(query), params or {})
+        row = result.fetchone()
+        return row[0] if row else None
+
+
 def fetchall(query: str, params: dict = None):
     """Ko‘p qatorli SELECT — list[dict] qaytaradi."""
     with engine.connect() as conn:
@@ -138,6 +146,23 @@ def init_db():
                     conn.execute(text(fix))
                 except Exception:
                     pass  # agar allaqachon o‘zgartirilgan bo‘lsa — e’tibor bermaymiz
+
+            schema_patches = [
+                "ALTER TABLE problems ADD COLUMN IF NOT EXISTS branch_id INTEGER",
+                "ALTER TABLE problems ADD COLUMN IF NOT EXISTS report_id INTEGER",
+                "ALTER TABLE problems ADD COLUMN IF NOT EXISTS description TEXT",
+                "ALTER TABLE problems ADD COLUMN IF NOT EXISTS photo_file_id TEXT",
+            ]
+            for patch in schema_patches:
+                try:
+                    conn.execute(text(patch))
+                except Exception:
+                    pass
+
+            try:
+                conn.execute(text("ALTER TABLE problems RENAME COLUMN text TO description"))
+            except Exception:
+                pass
 
         print("✅ Database initialized successfully (PostgreSQL + BIGINT fixed).")
     except SQLAlchemyError as e:
