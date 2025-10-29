@@ -1,7 +1,7 @@
-from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
 
 
+# 🧭 ADMIN PANEL — ODDIY TUGMALAR
 def get_admin_kb():
     keyboard = [
         # 👥 ISHCHILAR BO‘LIMI
@@ -24,13 +24,22 @@ def get_admin_kb():
             KeyboardButton(text="💬 Muammolar")
         ],
 
-        # ⚙️ TIZIM/ORQAGA
+        # ⚙️ TIZIM / ORQAGA
         [
             KeyboardButton(text="⚙️ Sozlamalar"),
             KeyboardButton(text="⬅️ Menyuga qaytish")
         ]
     ]
 
+    return ReplyKeyboardMarkup(
+        keyboard=keyboard,
+        resize_keyboard=True,
+        input_field_placeholder="Tanlang 👇",
+        one_time_keyboard=False
+    )
+
+
+# 🧩 INLINE TUGMALAR (Ishchi uchun harakatlar)
 def get_admin_inline_actions(user_id: int):
     return InlineKeyboardMarkup(inline_keyboard=[
         [
@@ -42,9 +51,3 @@ def get_admin_inline_actions(user_id: int):
             InlineKeyboardButton(text="⚠️ Jarima yozish", callback_data=f"fine:{user_id}")
         ]
     ])
-
-    return ReplyKeyboardMarkup(
-        keyboard=keyboard,
-        resize_keyboard=True,
-        one_time_keyboard=False
-    )
