@@ -48,37 +48,41 @@ async def cmd_start(message: Message):
     await message.answer("👋 Salom, SuperAdmin!\nHISOBOT24 boshqaruv paneli ishga tayyor.", 
                          reply_markup=get_superadmin_kb())
 
+# ================== 📊 Hisobotlar menyusi ==================
+@router.message(F.text.in_(["📊 Bugungi hisobotlar", "📈 Umumiy hisobotlar"]))
+async def show_report_type_menu(message: types.Message):
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(text="📅 Bugungi hisobotlar", callback_data="menu:today"),
+            InlineKeyboardButton(text="📆 Umumiy hisobotlar", callback_data="menu:all")
+        ],
+        [InlineKeyboardButton(text="❌ Bekor qilish", callback_data="menu:cancel")]
+    ])
 
-# ================== 📊 Bugungi hisobotlar ==================
-@router.message(F.text == "📊 Bugungi hisobotlar")
-async def show_today_branches(message: types.Message):
+    await message.answer("📋 Hisobot turini tanlang:", reply_markup=kb)
+
+
+# ================== 🔹 Bugungi yoki Umumiy bo‘lim tanlanganida ==================
+@router.callback_query(F.data.startswith("menu:"))
+async def choose_branch(callback: types.CallbackQuery):
+    action = callback.data.split(":")[1]
+    if action == "cancel":
+        await callback.message.answer("❌ Bekor qilindi.")
+        return
+
     branches = database.fetchall("SELECT id, name FROM branches ORDER BY id ASC")
-
     if not branches:
-        await message.answer("⚠️ Hali hech bir filial mavjud emas.")
+        await callback.message.answer("⚠️ Hali hech bir filial mavjud emas.")
         return
 
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text=b["name"], callback_data=f"today_branch:{b['id']}")] for b in branches
+        [InlineKeyboardButton(text=b["name"], callback_data=f"{action}_branch:{b['id']}")] for b in branches
     ])
 
-    await message.answer("📅 Qaysi filialning bugungi hisobotlarini ko‘rmoqchisiz?", reply_markup=kb)
-
-
-# ================== 📈 Umumiy hisobotlar ==================
-@router.message(F.text == "📈 Umumiy hisobotlar")
-async def show_all_branches(message: types.Message):
-    branches = database.fetchall("SELECT id, name FROM branches ORDER BY id ASC")
-
-    if not branches:
-        await message.answer("⚠️ Hali hech bir filial mavjud emas.")
-        return
-
-    kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text=b["name"], callback_data=f"all_branch:{b['id']}")] for b in branches
-    ])
-
-    await message.answer("🏢 Qaysi filialning umumiy hisobotlarini ko‘rmoqchisiz?", reply_markup=kb)
+    if action == "today":
+        await callback.message.answer("📅 Qaysi filialning bugungi hisobotlarini ko‘rmoqchisiz?", reply_markup=kb)
+    else:
+        await callback.message.answer("📆 Qaysi filialning umumiy hisobotlarini ko‘rmoqchisiz?", reply_markup=kb)
 
 
 # ================== 🔹 Bugungi filial hisobotlari ==================
