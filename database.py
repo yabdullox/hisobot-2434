@@ -1,163 +1,171 @@
 import os
 import sqlite3
 import psycopg2
-from psycopg2.extras import RealDictCursor
+import psycopg2.extras
 from dotenv import load_dotenv
 
 load_dotenv()
 
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///hisobot24.db")
-IS_SQLITE = DATABASE_URL.startswith("sqlite")
 
-# ==========================
-# 🔌 Ulanuvchi funksiyalar
-# ==========================
+is_postgres = DATABASE_URL.startswith("postgres")
+
+# =========================
+# 🔌 Ulanish funksiyasi
+# =========================
 def get_connection():
-    if IS_SQLITE:
+    if is_postgres:
+        return psycopg2.connect(DATABASE_URL, sslmode="require", cursor_factory=psycopg2.extras.RealDictCursor)
+    else:
         path = DATABASE_URL.replace("sqlite:///", "")
         conn = sqlite3.connect(path)
         conn.row_factory = sqlite3.Row
         return conn
-    else:
-        return psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor)
 
 
-# ==========================
-# 🧱 Barcha jadvallarni yaratish
-# ==========================
-def init_db():
+# =========================
+# 💾 Execute (INSERT, UPDATE, DELETE)
+# =========================
+def execute(query: str, params: dict = None):
     conn = get_connection()
-    cursor = conn.cursor()
+    cur = conn.cursor()
+    try:
+        if is_postgres:
+            # PostgreSQL uchun parametrlarni %s formatga o‘zgartiramiz
+            if params:
+                q = query
+                for key in params.keys():
+                    q = q.replace(f":{key}", "%s")
+                cur.execute(q, tuple(params.values()))
+            else:
+                cur.execute(query)
+        else:
+            cur.execute(query, params or {})
 
-    # 👤 Foydalanuvchilar
-    cursor.execute("""
+        conn.commit()
+    finally:
+        cur.close()
+        conn.close()
+
+
+# =========================
+# 🔍 fetchone (1 ta natija)
+# =========================
+def fetchone(query: str, params: dict = None):
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        if is_postgres:
+            q = query
+            if params:
+                for key in params.keys():
+                    q = q.replace(f":{key}", "%s")
+                cur.execute(q, tuple(params.values()))
+            else:
+                cur.execute(query)
+        else:
+            cur.execute(query, params or {})
+
+        result = cur.fetchone()
+        return dict(result) if result else None
+    finally:
+        cur.close()
+        conn.close()
+
+
+# =========================
+# 📋 fetchall (ko‘p natija)
+# =========================
+def fetchall(query: str, params: dict = None):
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        if is_postgres:
+            q = query
+            if params:
+                for key in params.keys():
+                    q = q.replace(f":{key}", "%s")
+                cur.execute(q, tuple(params.values()))
+            else:
+                cur.execute(query)
+        else:
+            cur.execute(query, params or {})
+
+        result = cur.fetchall()
+        return [dict(r) for r in result]
+    finally:
+        cur.close()
+        conn.close()
+
+
+# =========================
+# 🧱 init_db (faqat SQLite uchun)
+# =========================
+def init_db():
+    if not is_postgres:
+        conn = get_connection()
+        cur = conn.cursor()
+        cur.executescript("""
         CREATE TABLE IF NOT EXISTS users (
-            id SERIAL PRIMARY KEY,
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
             telegram_id BIGINT UNIQUE,
             full_name TEXT,
             role TEXT,
-            branch_id INTEGER,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            branch_id INTEGER
         );
-    """)
 
-    # 📋 Ish hisobotlari
-    cursor.execute("""
         CREATE TABLE IF NOT EXISTS reports (
-            id SERIAL PRIMARY KEY,
-            user_id BIGINT NOT NULL,
-            date DATE NOT NULL,
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id BIGINT,
+            date DATE,
             start_time TEXT,
-            end_time TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            end_time TEXT
         );
-    """)
 
-    # 💰 Bonuslar
-    cursor.execute("""
         CREATE TABLE IF NOT EXISTS bonuses (
-            id SERIAL PRIMARY KEY,
-            user_id BIGINT NOT NULL,
-            amount INTEGER NOT NULL,
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id BIGINT,
+            branch_id INTEGER,
+            amount INTEGER,
             reason TEXT,
             created_by BIGINT,
             auto BOOLEAN DEFAULT FALSE,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
-    """)
 
-    # ❌ Jarimalar
-    cursor.execute("""
         CREATE TABLE IF NOT EXISTS fines (
-            id SERIAL PRIMARY KEY,
-            user_id BIGINT NOT NULL,
-            amount INTEGER NOT NULL,
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id BIGINT,
+            branch_id INTEGER,
+            amount INTEGER,
             reason TEXT,
             created_by BIGINT,
             auto BOOLEAN DEFAULT FALSE,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
-    """)
 
-    # 🧹 Tozalash rasmlari
-    cursor.execute("""
         CREATE TABLE IF NOT EXISTS cleaning_photos (
-            id SERIAL PRIMARY KEY,
-            user_id BIGINT NOT NULL,
-            report_id BIGINT,
-            file_id TEXT NOT NULL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id BIGINT,
+            report_id INTEGER,
+            file_id TEXT
         );
-    """)
 
-    # ⚠️ Muammolar
-    cursor.execute("""
         CREATE TABLE IF NOT EXISTS problems (
-            id SERIAL PRIMARY KEY,
-            user_id BIGINT NOT NULL,
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id BIGINT,
             text TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            has_photo BOOLEAN,
+            date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
-    """)
 
-    # 🗒️ Eslatmalar
-    cursor.execute("""
         CREATE TABLE IF NOT EXISTS notes (
-            id SERIAL PRIMARY KEY,
-            telegram_id BIGINT NOT NULL,
-            text TEXT NOT NULL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            telegram_id BIGINT,
+            content TEXT,
+            date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
-    """)
-
-    conn.commit()
-    conn.close()
-    print("✅ Database initialized successfully (PostgreSQL/SQLite auto).")
-
-
-# ==========================
-# 🔁 Umumiy CRUD funksiyalar
-# ==========================
-def execute(query, params=None):
-    conn = get_connection()
-    cursor = conn.cursor()
-
-    if IS_SQLITE:
-        cursor.execute(query, params or {})
-    else:
-        cursor.execute(query, params or {})
-
-    conn.commit()
-    conn.close()
-
-
-def fetchone(query, params=None):
-    conn = get_connection()
-    cursor = conn.cursor()
-
-    if IS_SQLITE:
-        cursor.execute(query, params or {})
-        result = cursor.fetchone()
+        """)
+        conn.commit()
+        cur.close()
         conn.close()
-        return dict(result) if result else None
-    else:
-        cursor.execute(query, params or {})
-        result = cursor.fetchone()
-        conn.close()
-        return result
-
-
-def fetchall(query, params=None):
-    conn = get_connection()
-    cursor = conn.cursor()
-
-    if IS_SQLITE:
-        cursor.execute(query, params or {})
-        rows = cursor.fetchall()
-        conn.close()
-        return [dict(row) for row in rows]
-    else:
-        cursor.execute(query, params or {})
-        rows = cursor.fetchall()
-        conn.close()
-        return rows
