@@ -2,6 +2,7 @@ import os
 import asyncio
 import logging
 import aiohttp
+import handlers.admin_branch_link as admin_branch_link_h
 from aiogram import Bot, Dispatcher
 from aiogram.types import BotCommand
 from dotenv import load_dotenv
@@ -10,6 +11,7 @@ from aiohttp import web
 # === Fayllar va konfiguratsiya ===
 from database import init_db
 from handlers import start as start_h, superadmin as superadmin_h, admin as admin_h, worker as worker_h
+
 
 load_dotenv()
 
@@ -23,6 +25,7 @@ dp.include_router(start_h.router)
 dp.include_router(superadmin_h.router)
 dp.include_router(admin_h.router)
 dp.include_router(worker_h.router)
+dp.include_router(admin_branch_link_h.router)
 
 
 async def check_conflict():
