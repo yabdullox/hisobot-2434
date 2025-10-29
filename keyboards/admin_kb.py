@@ -1,10 +1,36 @@
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 
+
 def get_admin_kb():
     keyboard = [
-        [KeyboardButton(text="👥 Ishchilar ro‘yxati"), KeyboardButton(text="➕ Ishchi qo‘shish")],
-        [KeyboardButton(text="🗑️ Ishchini o‘chirish"), KeyboardButton(text="💰 Jarima/Bonus yozish")],
-        [KeyboardButton(text="💬 Muammolar"), KeyboardButton(text="💰 Bonus/Jarimalar ro‘yxati")],  # ✅ yangi tugma
-        [KeyboardButton(text="⬅️ Menyuga qaytish")]
+        # 👥 ISHCHILAR BO‘LIMI
+        [
+            KeyboardButton(text="👥 Ishchilar ro‘yxati"),
+            KeyboardButton(text="➕ Ishchi qo‘shish")
+        ],
+        [
+            KeyboardButton(text="🗑️ Ishchini o‘chirish")
+        ],
+
+        # 💰 MOLIYAVIY BO‘LIM
+        [
+            KeyboardButton(text="💰 Jarima/Bonus yozish"),
+            KeyboardButton(text="💰 Bonus/Jarimalar ro‘yxati")
+        ],
+
+        # 💬 MUAMMOLAR BO‘LIMI
+        [
+            KeyboardButton(text="💬 Muammolar")
+        ],
+
+        # ⚙️ TIZIM/ORQAGA
+        [
+            KeyboardButton(text="⚙️ Sozlamalar"),
+            KeyboardButton(text="⬅️ Menyuga qaytish")
+        ]
     ]
-    return ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
+    return ReplyKeyboardMarkup(
+        keyboard=keyboard,
+        resize_keyboard=True,
+        one_time_keyboard=False
+    )
