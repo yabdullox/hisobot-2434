@@ -306,6 +306,13 @@ async def show_all_bonus_fines(message: types.Message):
         text += "📭 Ma’lumotlar topilmadi."
 
     await message.answer(text, parse_mode="HTML")
+    
+@router.message(F.text == "⬅️ Orqaga")
+async def back_to_main_worker_menu(message: types.Message):
+    await message.answer(
+        "🏠 Asosiy ishchi menyu:",
+        reply_markup=get_worker_main_kb()
+    )
 
 
 # ===============================
