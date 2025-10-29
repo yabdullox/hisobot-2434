@@ -26,7 +26,7 @@ def get_admin_kb():
 
         # ⚙️ TIZIM / ORQAGA
         [
-            KeyboardButton(text="⚙️ Sozlamalar"),
+            
             KeyboardButton(text="⬅️ Menyuga qaytish")
         ]
     ]
