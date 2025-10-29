@@ -99,32 +99,71 @@ async def start_work(message: types.Message):
 @router.message(F.text == "🏁 Ishni tugatdim")
 async def finish_work(message: types.Message):
     user_id = message.from_user.id
-    now = datetime.now()
-    today = now.date()
-    end_time = now.strftime("%H:%M:%S")
+    user = database.fetchone("SELECT * FROM users WHERE telegram_id = %s", (user_id,))
 
-    report = database.fetchone(
-        "SELECT id FROM reports WHERE user_id=:u AND date=:d",
-        {"u": user_id, "d": today}
-    )
-    if not report:
-        await message.answer("⚠️ Siz bugun ishni boshlamagansiz.")
+    if not user:
+        await message.answer("⚠️ Siz ro‘yxatdan o‘tmagansiz.")
         return
 
-    database.execute("""
-        UPDATE reports SET end_time=:t WHERE id=:id
-    """, {"t": end_time, "id": report["id"]})
+    # Sana va vaqt
+    now = datetime.now()
+    date_str = now.strftime("%Y-%m-%d")
+    time_str = now.strftime("%H:%M:%S")
 
-    await message.answer(f"🏁 Ish tugash vaqti saqlandi: {end_time}")
-    await message.answer("Endi 📤 <b>Bugungi hisobotni yuboring</b> tugmasini bosing.", parse_mode="HTML")
+    # Tugash vaqtini bazaga saqlaymiz
+    database.query("UPDATE users SET end_time=%s WHERE telegram_id=%s", (time_str, user_id))
 
-    try:
-        await message.bot.send_message(SUPERADMIN_ID, f"🏁 Ishchi {message.from_user.full_name} ishni tugatdi ({end_time})")
-        if ADMIN_ID:
-            await message.bot.send_message(ADMIN_ID, f"🏁 Ishchi {message.from_user.full_name} ishni tugatdi ({end_time})")
-    except Exception:
-        pass
+    await message.answer(f"🏁 Ish tugash vaqti saqlandi: <b>{time_str}</b>\n\n"
+                         "Endi 🧾 <b>Bugungi hisobotni yuboring</b> tugmasini bosing.",
+                         parse_mode="HTML")
 
+
+# Bugungi hisobotni yuborish
+@router.message(F.text == "🧾 Bugungi hisobotni yuborish")
+async def send_daily_report(message: types.Message):
+    user_id = message.from_user.id
+    user = database.fetchone("SELECT * FROM users WHERE telegram_id = %s", (user_id,))
+
+    if not user:
+        await message.answer("⚠️ Siz ro‘yxatdan o‘tmagansiz.")
+        return
+
+    await message.answer("🧾 Hisobotingizni yuboring (matn shaklida):")
+    await message.bot.send_message(user_id, "✍️ Hisobot matnini kiriting:")
+    await message.bot.set_state(user_id, "waiting_for_report")
+
+
+# Foydalanuvchi hisobot matnini yuborganda
+@router.message(state="waiting_for_report")
+async def receive_report(message: types.Message, state):
+    report_text = message.text
+    user_id = message.from_user.id
+    user = database.fetchone("SELECT * FROM users WHERE telegram_id = %s", (user_id,))
+
+    if not user:
+        await message.answer("⚠️ Siz ro‘yxatdan o‘tmagansiz.")
+        return
+
+    full_name = user["fullname"]
+    branch = user["branch"]
+    now = datetime.now()
+    date_str = now.strftime("%Y-%m-%d")
+    time_str = now.strftime("%H:%M:%S")
+
+    # Hisobotni Superadmin (yoki Admin)ga yuboramiz
+    report_message = (
+        f"🧾 <b>Yangi ishchi hisobot!</b>\n\n"
+        f"👷 Ishchi: <b>{full_name}</b>\n"
+        f"🏢 Filial: <b>{branch}</b>\n"
+        f"🆔 Telegram ID: <code>{user_id}</code>\n\n"
+        f"🕒 Sana: <b>{date_str}</b>\n"
+        f"🕘 Hisobot yuborilgan vaqt: <b>{time_str}</b>\n\n"
+        f"🧹 Hisobot matni:\n{report_text}"
+    )
+
+    await message.bot.send_message(SUPERADMIN_ID, report_message, parse_mode="HTML")
+    await message.answer("✅ Hisobotingiz yuborildi, rahmat!", parse_mode="HTML")
+    await state.clear()
 # ===============================
 # 💬 Muammo yuborish
 # ===============================
