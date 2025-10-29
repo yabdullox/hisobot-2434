@@ -51,78 +51,114 @@ async def cmd_start(message: Message):
 
 # ================== 📊 Bugungi hisobotlar ==================
 @router.message(F.text == "📊 Bugungi hisobotlar")
-async def today_reports(message: types.Message):
-    today = date.today()
-    reports = database.fetchall(
-        """
-        SELECT r.*, u.full_name, u.telegram_id, b.name AS branch_name
-        FROM reports r
-        LEFT JOIN users u ON r.user_id = u.telegram_id
-        LEFT JOIN branches b ON r.branch_id = b.id
-        WHERE r.date = :today
-        ORDER BY r.created_at DESC
-        """,
-        {"today": today}
-    )
+async def show_today_branches(message: types.Message):
+    branches = database.fetchall("SELECT id, name FROM branches ORDER BY id ASC")
 
-    if not reports:
-        await message.answer("📭 Bugun hali hisobot yuborilmagan.")
+    if not branches:
+        await message.answer("⚠️ Hali hech bir filial mavjud emas.")
         return
 
-    text = "📅 <b>Bugungi hisobotlar:</b>\n\n"
-    for r in reports:
-        full_name = r.get("full_name", "—")
-        branch = r.get("branch_name", "—")
-        user_id = r.get("telegram_id", "—")
-        report_text = r.get("text") or "—"
-        start_time = str(r.get("start_time")) if r.get("start_time") else "—"
-        end_time = str(r.get("end_time")) if r.get("end_time") else "—"
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=b["name"], callback_data=f"today_branch:{b['id']}")] for b in branches
+    ])
 
-        text += (
-            f"👷 <b>{full_name}</b>\n"
-            f"🏢 Filial: <b>{branch}</b>\n"
-            f"🆔 ID: <code>{user_id}</code>\n"
-            f"🕘 {start_time} - {end_time}\n"
-            f"🧾 Hisobot: <i>{report_text}</i>\n"
-            f"───────────────\n"
-        )
-
-    await message.answer(text, parse_mode="HTML")
+    await message.answer("📅 Qaysi filialning bugungi hisobotlarini ko‘rmoqchisiz?", reply_markup=kb)
 
 
 # ================== 📈 Umumiy hisobotlar ==================
 @router.message(F.text == "📈 Umumiy hisobotlar")
-async def all_reports(message: types.Message):
-    reports = database.fetchall(
-        """
+async def show_all_branches(message: types.Message):
+    branches = database.fetchall("SELECT id, name FROM branches ORDER BY id ASC")
+
+    if not branches:
+        await message.answer("⚠️ Hali hech bir filial mavjud emas.")
+        return
+
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=b["name"], callback_data=f"all_branch:{b['id']}")] for b in branches
+    ])
+
+    await message.answer("🏢 Qaysi filialning umumiy hisobotlarini ko‘rmoqchisiz?", reply_markup=kb)
+
+
+# ================== 🔹 Bugungi filial hisobotlari ==================
+@router.callback_query(F.data.startswith("today_branch:"))
+async def show_today_reports(callback: types.CallbackQuery):
+    branch_id = int(callback.data.split(":")[1])
+    today = date.today()
+
+    reports = database.fetchall("""
         SELECT r.*, u.full_name, u.telegram_id, b.name AS branch_name
         FROM reports r
         LEFT JOIN users u ON r.user_id = u.telegram_id
         LEFT JOIN branches b ON r.branch_id = b.id
-        ORDER BY r.date DESC
-        LIMIT 20
-        """
-    )
+        WHERE r.date = :today AND r.branch_id = :bid
+        ORDER BY r.created_at DESC
+    """, {"today": today, "bid": branch_id})
 
     if not reports:
-        await message.answer("📭 Hali hech qanday hisobot mavjud emas.")
+        await callback.message.answer("📭 Bu filialda bugun hisobot yo‘q.")
         return
 
-    text = "📊 <b>So‘nggi 20 ta hisobot:</b>\n\n"
     for r in reports:
-        date_str = str(r.get("date"))
         full_name = r.get("full_name", "—")
         branch = r.get("branch_name", "—")
+        user_id = r.get("telegram_id", "—")
+        date_str = str(r.get("date") or today)
+        time_str = str(r.get("end_time") or "—")
         report_text = r.get("text") or "—"
 
-        text += (
-            f"📅 {date_str}\n"
-            f"👷 <b>{full_name}</b> | 🏢 <b>{branch}</b>\n"
-            f"🧾 {report_text}\n"
-            f"───────────────\n"
+        text = (
+            f"🧾 <b>Yangi ishchi hisobot!</b>\n\n"
+            f"👷 Ishchi: <b>{full_name}</b>\n"
+            f"🏢 Filial ID: <b>{branch_id}</b> ({branch})\n"
+            f"🆔 Telegram ID: <code>{user_id}</code>\n\n"
+            f"📅 Sana: {date_str}\n"
+            f"🕘 Vaqt: {time_str}\n\n"
+            f"🧹 Hisobot matni:\n<code>{report_text}</code>"
         )
 
-    await message.answer(text, parse_mode="HTML")
+        await callback.message.answer(text, parse_mode="HTML")
+
+
+# ================== 🔹 Umumiy filial hisobotlari ==================
+@router.callback_query(F.data.startswith("all_branch:"))
+async def show_all_reports(callback: types.CallbackQuery):
+    branch_id = int(callback.data.split(":")[1])
+
+    reports = database.fetchall("""
+        SELECT r.*, u.full_name, u.telegram_id, b.name AS branch_name
+        FROM reports r
+        LEFT JOIN users u ON r.user_id = u.telegram_id
+        LEFT JOIN branches b ON r.branch_id = b.id
+        WHERE r.branch_id = :bid
+        ORDER BY r.date DESC
+        LIMIT 20
+    """, {"bid": branch_id})
+
+    if not reports:
+        await callback.message.answer("📭 Bu filialda hali hisobotlar yo‘q.")
+        return
+
+    for r in reports:
+        full_name = r.get("full_name", "—")
+        branch = r.get("branch_name", "—")
+        user_id = r.get("telegram_id", "—")
+        date_str = str(r.get("date") or "—")
+        time_str = str(r.get("end_time") or "—")
+        report_text = r.get("text") or "—"
+
+        text = (
+            f"🧾 <b>Yangi ishchi hisobot!</b>\n\n"
+            f"👷 Ishchi: <b>{full_name}</b>\n"
+            f"🏢 Filial ID: <b>{branch_id}</b> ({branch})\n"
+            f"🆔 Telegram ID: <code>{user_id}</code>\n\n"
+            f"📅 Sana: {date_str}\n"
+            f"🕘 Vaqt: {time_str}\n\n"
+            f"🧹 Hisobot matni:\n<code>{report_text}</code>"
+        )
+
+        await callback.message.answer(text, parse_mode="HTML")
 # ===============================
 # 🏢 Filiallar ro‘yxati
 # ===============================
