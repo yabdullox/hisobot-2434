@@ -12,18 +12,19 @@ def export_reports_to_excel(reports, branch_name="Barcha Filiallar", report_type
     - Sana, filial va hisobot turi avtomatik yoziladi
     """
 
+    # Fayl nomi va yo'lini tayyorlash
     now = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     filename = f"hisobot_{report_type.replace(' ', '_')}_{now}.xlsx"
     folder = "exports"
     os.makedirs(folder, exist_ok=True)
     file_path = os.path.join(folder, filename)
 
-    # DataFrame yaratish
+    # Ma'lumotni DataFrame ga o'tkazamiz
     df = pd.DataFrame(reports)
     if df.empty:
         df = pd.DataFrame([{"Ma'lumot": "Hisobot topilmadi"}])
 
-    # Excel yozish
+    # Excel faylini yozish
     with pd.ExcelWriter(file_path, engine="xlsxwriter") as writer:
         sheet_name = "Hisobot"
         df.to_excel(writer, index=False, startrow=7, sheet_name=sheet_name)
@@ -72,7 +73,7 @@ def export_reports_to_excel(reports, branch_name="Barcha Filiallar", report_type
             "align": "right",
         })
 
-        # ====== Sarlavha ======
+        # ====== Sarlavhalar (yuqori qatorlar) ======
         worksheet.merge_range("A1:H1", "🧾 HISOBOT24 — Ishchi Hisobotlar", title_format)
         worksheet.merge_range("A2:H2", f"📁 Hisobot turi: {report_type}", subtitle_format)
         worksheet.merge_range("A3:H3", f"🏢 Filial: {branch_name}", subtitle_format)
@@ -81,23 +82,30 @@ def export_reports_to_excel(reports, branch_name="Barcha Filiallar", report_type
 
         # ====== Jadval ustunlari ======
         for col_num, value in enumerate(df.columns.values):
-            worksheet.write(7, col_num, value, header_format)
+            worksheet.write(7, col_num, str(value), header_format)
 
         # Jadval qiymatlarini yozish
         for row in range(len(df)):
             for col in range(len(df.columns)):
                 worksheet.write(row + 8, col, str(df.iloc[row, col]), cell_format)
 
-        # Ustun kengliklarini avtomatik sozlash
+        # ====== Ustun kengliklarini avtomatik sozlash ======
         for i, col in enumerate(df.columns):
-           max_len = max(df[col].astype(str).map(len).max(), len(str(col)))
+            try:
+                max_len = max(df[col].astype(str).map(len).max(), len(str(col)))
+            except Exception:
+                max_len = len(str(col))
             worksheet.set_column(i, i, min(max_len + 3, 40))
 
         # ====== Footer (pastda) ======
         last_row = len(df) + 10
-        worksheet.merge_range(f"A{last_row}:H{last_row}", 
-                              "📌 Ushbu hisobot HISOBOT24 tizimi tomonidan avtomatik yaratildi.",
-                              footer_format)
+        worksheet.merge_range(
+            f"A{last_row}:H{last_row}",
+            "📌 Ushbu hisobot HISOBOT24 tizimi tomonidan avtomatik yaratildi.",
+            footer_format
+        )
 
     return file_path
+
+
 
