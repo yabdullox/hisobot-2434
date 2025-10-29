@@ -1,9 +1,15 @@
 # database.py
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import SQLAlchemyError
-from config import DATABASE_URL
-
-
+from config import DATABAS            # 🔧 Tipni avtomatik BIGINT ga moslab qo'yish (agar eski jadval bo'lsa)
+            fix_types = [
+                "ALTER TABLE users ALTER COLUMN telegram_id TYPE BIGINT USING telegram_id::bigint",
+                "ALTER TABLE reports ALTER COLUMN user_id TYPE BIGINT USING user_id::bigint",
+                "ALTER TABLE fines ALTER COLUMN user_id TYPE BIGINT USING user_id::bigint",
+                "ALTER TABLE fines ALTER COLUMN created_by TYPE BIGINT USING created_by::bigint",
+                "ALTER TABLE bonuses ALTER COLUMN user_id TYPE BIGINT USING user_id::bigint",
+                "ALTER TABLE bonuses ALTER COLUMN created_by TYPE BIGINT USING created_by::bigint"
+            ]
 # ⚙️ PostgreSQL ulanish (async emas, polling uchun mos)
 engine = create_engine(
     DATABASE_URL,
