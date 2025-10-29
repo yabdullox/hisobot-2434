@@ -309,9 +309,10 @@ async def show_all_bonus_fines(message: types.Message):
     
 @router.message(F.text == "⬅️ Orqaga")
 async def back_to_main_worker_menu(message: types.Message):
+    from keyboards.worker_kb import get_worker_kb  # to'g'ri import
     await message.answer(
-        "🏠 Asosiy ishchi menyu:",
-        reply_markup=get_worker_main_kb()
+        "🏠 Asosiy ishchi menyuga qaytdingiz:",
+        reply_markup=get_worker_kb()
     )
 
 
