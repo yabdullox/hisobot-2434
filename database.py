@@ -1,40 +1,35 @@
-# database.py
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import SQLAlchemyError
-
 from config import DATABASE_URL
 
-# ⚙️ PostgreSQL ulanish (async emas, polling uchun mos)
-engine = create_engine(
-    DATABASE_URL,
-    future=True,
-    pool_pre_ping=True  # connection uzilib qolsa avtomatik reconnect
-)
+
+# Single engine for the app
+engine = create_engine(DATABASE_URL, future=True, pool_pre_ping=True)
 
 
-def execute(query: str, params: dict = None):
-    """INSERT / UPDATE / DELETE uchun yordamchi (commit bilan)."""
+def execute(query: str, params: dict | None = None):
+    """Run INSERT/UPDATE/DELETE — commits automatically."""
     with engine.begin() as conn:
         conn.execute(text(query), params or {})
 
 
-def execute_returning(query: str, params: dict = None):
-    """INSERT ... RETURNING kabi so'rovlar uchun birinchi qiymatni qaytaradi."""
+def execute_returning(query: str, params: dict | None = None):
+    """Run INSERT ... RETURNING and return first column of first row if any."""
     with engine.begin() as conn:
-        result = conn.execute(text(query), params or {})
-        row = result.fetchone()
+        res = conn.execute(text(query), params or {})
+        row = res.fetchone()
         return row[0] if row else None
 
 
-def fetchall(query: str, params: dict = None):
-    """Ko‘p qatorli SELECT — list[dict] qaytaradi."""
+def fetchall(query: str, params: dict | None = None):
+    """Return list[dict] for SELECT queries."""
     with engine.connect() as conn:
         res = conn.execute(text(query), params or {})
         return [dict(r._mapping) for r in res.fetchall()]
 
 
-def fetchone(query: str, params: dict = None):
-    """Bitta qator SELECT — dict yoki None qaytaradi."""
+def fetchone(query: str, params: dict | None = None):
+    """Return single row as dict or None."""
     with engine.connect() as conn:
         res = conn.execute(text(query), params or {})
         row = res.fetchone()
@@ -42,7 +37,10 @@ def fetchone(query: str, params: dict = None):
 
 
 def init_db():
-    """Barcha jadvallarni yaratadi (agar mavjud bo‘lmasa)."""
+    """Create tables if missing and apply lightweight migrations.
+
+    Uses textual SQL and named parameters so it fits the rest of the code.
+    """
     stmts = [
         """
         CREATE TABLE IF NOT EXISTS users (
@@ -120,33 +118,33 @@ def init_db():
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             auto INTEGER DEFAULT 0
         )
-        """
+        """,
     ]
 
     try:
         with engine.begin() as conn:
             for s in stmts:
                 conn.execute(text(s))
-            # 🔄 Unikal indeks (ishchi bir kunda bitta hisobot)
-            conn.execute(
-                text("CREATE UNIQUE INDEX IF NOT EXISTS idx_reports_user_date ON reports(user_id, date)")
-            )
 
-            # 🔧 Tipni avtomatik BIGINT ga moslab qo‘yish (agar eski jadval bo‘lsa)
+            # unique index to avoid duplicate reports per day
+            conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS idx_reports_user_date ON reports(user_id, date)"))
+
+            # Attempt to coerce types for older DBs (safe: errors are ignored)
             fix_types = [
                 "ALTER TABLE users ALTER COLUMN telegram_id TYPE BIGINT USING telegram_id::bigint",
                 "ALTER TABLE reports ALTER COLUMN user_id TYPE BIGINT USING user_id::bigint",
                 "ALTER TABLE fines ALTER COLUMN user_id TYPE BIGINT USING user_id::bigint",
                 "ALTER TABLE fines ALTER COLUMN created_by TYPE BIGINT USING created_by::bigint",
                 "ALTER TABLE bonuses ALTER COLUMN user_id TYPE BIGINT USING user_id::bigint",
-                "ALTER TABLE bonuses ALTER COLUMN created_by TYPE BIGINT USING created_by::bigint"
+                "ALTER TABLE bonuses ALTER COLUMN created_by TYPE BIGINT USING created_by::bigint",
             ]
             for fix in fix_types:
                 try:
                     conn.execute(text(fix))
                 except Exception:
-                    pass  # agar allaqachon o‘zgartirilgan bo‘lsa — e’tibor bermaymiz
+                    pass
 
+            # Ensure problems table has expected columns (safe no-op if present)
             schema_patches = [
                 "ALTER TABLE problems ADD COLUMN IF NOT EXISTS branch_id INTEGER",
                 "ALTER TABLE problems ADD COLUMN IF NOT EXISTS report_id INTEGER",
@@ -159,11 +157,10 @@ def init_db():
                 except Exception:
                     pass
 
-            try:
-                conn.execute(text("ALTER TABLE problems RENAME COLUMN text TO description"))
-            except Exception:
-                pass
-
-        print("✅ Database initialized successfully (PostgreSQL + BIGINT fixed).")
+        print("✅ Database initialized successfully.")
     except SQLAlchemyError as e:
         print("❌ Database initialization error:", e)
+
+
+if __name__ == "__main__":
+    init_db()

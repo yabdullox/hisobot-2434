@@ -1,10 +1,50 @@
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+
 
 def get_admin_kb():
     keyboard = [
-        [KeyboardButton(text="👥 Ishchilar ro‘yxati"), KeyboardButton(text="➕ Ishchi qo‘shish")],
-        [KeyboardButton(text="🗑️ Ishchini o‘chirish"), KeyboardButton(text="💰 Jarima/Bonus yozish")],
-        [KeyboardButton(text="💬 Muammolar"), KeyboardButton(text="💰 Bonus/Jarimalar ro‘yxati")],  # ✅ yangi tugma
-        [KeyboardButton(text="⬅️ Menyuga qaytish")]
+        # 👥 ISHCHILAR BO‘LIMI
+        [
+            KeyboardButton(text="👥 Ishchilar ro‘yxati"),
+            KeyboardButton(text="➕ Ishchi qo‘shish")
+        ],
+        [
+            KeyboardButton(text="🗑️ Ishchini o‘chirish")
+        ],
+
+        # 💰 MOLIYAVIY BO‘LIM
+        [
+            KeyboardButton(text="💰 Jarima/Bonus yozish"),
+            KeyboardButton(text="💰 Bonus/Jarimalar ro‘yxati")
+        ],
+
+        # 💬 MUAMMOLAR BO‘LIMI
+        [
+            KeyboardButton(text="💬 Muammolar")
+        ],
+
+        # ⚙️ TIZIM/ORQAGA
+        [
+            KeyboardButton(text="⚙️ Sozlamalar"),
+            KeyboardButton(text="⬅️ Menyuga qaytish")
+        ]
     ]
-    return ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
+
+def get_admin_inline_actions(user_id: int):
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(text="✏️ Tahrirlash", callback_data=f"edit_worker:{user_id}"),
+            InlineKeyboardButton(text="🗑️ O‘chirish", callback_data=f"delete_worker:{user_id}")
+        ],
+        [
+            InlineKeyboardButton(text="💰 Bonus yozish", callback_data=f"bonus:{user_id}"),
+            InlineKeyboardButton(text="⚠️ Jarima yozish", callback_data=f"fine:{user_id}")
+        ]
+    ])
+
+    return ReplyKeyboardMarkup(
+        keyboard=keyboard,
+        resize_keyboard=True,
+        one_time_keyboard=False
+    )

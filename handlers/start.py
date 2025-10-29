@@ -4,9 +4,10 @@ from keyboards.superadmin_kb import get_superadmin_kb
 from keyboards.admin_kb import get_admin_kb
 from keyboards.worker_kb import get_worker_kb
 from database import fetchone, execute
-from config import SUPERADMIN_ID  # .env dan olinadi (config.py ichida)
+from config import SUPERADMIN_ID
 
 router = Router()
+
 
 # ===================== /start komandasi =====================
 @router.message(Command("start"))
@@ -14,15 +15,15 @@ async def cmd_start(message: types.Message):
     tg_id = message.from_user.id
     full_name = message.from_user.full_name
 
-    # SuperAdmin ID dan tekshiruv
-    if str(tg_id) == str(SUPERADMIN_ID):
-        # SuperAdmin DB’da yo‘q bo‘lsa — avtomatik qo‘shiladi
+    # 🔹 SuperAdmin uchun
+    if int(tg_id) == int(SUPERADMIN_ID):
         user = fetchone("SELECT * FROM users WHERE telegram_id = :tid", {"tid": tg_id})
         if not user:
             execute("""
                 INSERT INTO users (telegram_id, full_name, role)
                 VALUES (:tid, :name, 'superadmin')
             """, {"tid": tg_id, "name": full_name})
+
         await message.answer(
             "👑 <b>Salom, SuperAdmin!</b>\nHISOBOT24 boshqaruv paneliga xush kelibsiz!",
             reply_markup=get_superadmin_kb(),
@@ -30,7 +31,7 @@ async def cmd_start(message: types.Message):
         )
         return
 
-    # Oddiy foydalanuvchilar uchun tekshiruv
+    # 🔹 Oddiy foydalanuvchi uchun
     user = fetchone("SELECT role FROM users WHERE telegram_id=:tid", {"tid": tg_id})
 
     if not user:
@@ -41,25 +42,22 @@ async def cmd_start(message: types.Message):
 
     if role == "superadmin":
         await message.answer(
-            "👑 <b>Salom, SuperAdmin!</b>\nHISOBOT24 boshqaruv paneli tayyor!",
+            "👑 <b>Salom, SuperAdmin!</b>\nPanelga xush kelibsiz!",
             reply_markup=get_superadmin_kb(),
             parse_mode="HTML"
         )
-
     elif role == "admin":
         await message.answer(
-            "👋 <b>Salom, Filial Admin!</b>\nSiz Filial boshqaruv panelidasiz.",
+            "👨‍💼 <b>Salom, Filial Admin!</b>\nSiz filial boshqaruv panelidasiz.",
             reply_markup=get_admin_kb(),
             parse_mode="HTML"
         )
-
     elif role == "worker":
         await message.answer(
-            "👷‍♂️ <b>Salom, ishchi!</b>\nHisobot tizimi ishga tayyor.",
+            "👷‍♂️ <b>Salom, Ishchi!</b>\nHisobot tizimi ishga tayyor.",
             reply_markup=get_worker_kb(),
             parse_mode="HTML"
         )
-
     else:
         await message.answer("⚠️ Sizning ro‘lingiz aniqlanmadi.")
 
@@ -77,22 +75,10 @@ async def back_to_main_menu(message: types.Message):
     role = user["role"]
 
     if role == "superadmin":
-        await message.answer(
-            "📋 SuperAdmin menyusiga qaytdingiz.",
-            reply_markup=get_superadmin_kb()
-        )
-
+        await message.answer("📋 SuperAdmin menyusiga qaytdingiz.", reply_markup=get_superadmin_kb())
     elif role == "admin":
-        await message.answer(
-            "📋 Filial admin menyusiga qaytdingiz.",
-            reply_markup=get_admin_kb()
-        )
-
+        await message.answer("📋 Filial admin menyusiga qaytdingiz.", reply_markup=get_admin_kb())
     elif role == "worker":
-        await message.answer(
-            "📋 Ishchi menyusiga qaytdingiz.",
-            reply_markup=get_worker_kb()
-        )
-
+        await message.answer("📋 Ishchi menyusiga qaytdingiz.", reply_markup=get_worker_kb())
     else:
         await message.answer("⚠️ Tizimda ro‘lingiz aniqlanmadi.")

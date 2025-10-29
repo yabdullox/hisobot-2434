@@ -14,18 +14,19 @@ def export_reports_to_excel(reports, branch_name="Barcha Filiallar", report_type
     - Sana, filial va hisobot turi avtomatik yoziladi
     """
 
+    # Fayl nomi va yo'lini tayyorlash
     now = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     filename = f"hisobot_{report_type.replace(' ', '_')}_{now}.xlsx"
     folder = "exports"
     os.makedirs(folder, exist_ok=True)
     file_path = os.path.join(folder, filename)
 
-    # DataFrame yaratish
+    # Ma'lumotni DataFrame ga o'tkazamiz
     df = pd.DataFrame(reports)
     if df.empty:
         df = pd.DataFrame([{"Ma'lumot": "Hisobot topilmadi"}])
 
-    # Excel yozish
+    # Excel faylini yozish
     with pd.ExcelWriter(file_path, engine="xlsxwriter") as writer:
         sheet_name = "Hisobot"
         df.to_excel(writer, index=False, startrow=7, sheet_name=sheet_name)
@@ -98,7 +99,7 @@ def export_reports_to_excel(reports, branch_name="Barcha Filiallar", report_type
             for col in range(len(df.columns)):
                 worksheet.write(row + 8, col, str(df.iloc[row, col]), cell_format)
 
-        # Ustun kengliklarini avtomatik sozlash
+        # ====== Ustun kengliklarini avtomatik sozlash ======
         for i, col in enumerate(df.columns):
             column_series = df[col].astype(str)
             max_len = max(column_series.map(len).max(), len(str(col)))
@@ -113,3 +114,6 @@ def export_reports_to_excel(reports, branch_name="Barcha Filiallar", report_type
         )
 
     return file_path
+
+
+
