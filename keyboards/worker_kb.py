@@ -1,22 +1,39 @@
-from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 
-worker_menu = ReplyKeyboardMarkup(
-    keyboard=[
-        [KeyboardButton(text="🧾 Hisobot yuborish"), KeyboardButton(text="🕘 Ishni boshladim")],
-        [KeyboardButton(text="🏁 Ishni tugatdim")],
-        [KeyboardButton(text="📸 Tozalash rasmi yuborish"), KeyboardButton(text="💬 Muammo yuborish")],
-        [KeyboardButton(text="💰 Bonus/Jarimalarim")]
-    ],
-    resize_keyboard=True
-)
-
-bonus_menu = InlineKeyboardMarkup(
-    inline_keyboard=[
-        [InlineKeyboardButton(text="📅 Bugungi", callback_data="bonus_today")],
-        [InlineKeyboardButton(text="📊 Umumiy", callback_data="bonus_all")]
-    ]
-)
-
-# ✅ eski kodni buzmaslik uchun
+# 👷 Ishchi menyusi uchun keyboard
 def get_worker_kb():
-    return worker_menu
+    kb = [
+        [KeyboardButton(text="🕘 Ishni boshladim"), KeyboardButton(text="🏁 Ishni tugatdim")],
+        [KeyboardButton(text="🧹 Tozalash rasmi yuborish"), KeyboardButton(text="💬 Muammo yuborish")],
+        [KeyboardButton(text="💰 Bonus/Jarimalarim")],
+        [KeyboardButton(text="⬅️ Menyuga qaytish")]
+    ]
+    return ReplyKeyboardMarkup(
+        keyboard=kb,
+        resize_keyboard=True,
+        one_time_keyboard=False
+    )
+
+
+# 💰 Bonus/Jarima bo‘limi uchun keyboard
+def get_bonus_kb():
+    kb = [
+        [KeyboardButton(text="📅 Bugungi"), KeyboardButton(text="📋 Umumiy")],
+        [KeyboardButton(text="⬅️ Orqaga")]
+    ]
+    return ReplyKeyboardMarkup(
+        keyboard=kb,
+        resize_keyboard=True,
+        one_time_keyboard=False
+    )
+
+
+# 🏠 Asosiy menyuga qaytish tugmasi
+def get_main_kb():
+    kb = [
+        [KeyboardButton(text="👷 Ishchi menyusi")]
+    ]
+    return ReplyKeyboardMarkup(
+        keyboard=kb,
+        resize_keyboard=True
+    )
