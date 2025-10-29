@@ -12,7 +12,7 @@ def get_superadmin_kb():
         # 🏢 FILIALLAR BO‘LIMI
         [
             KeyboardButton(text="🏢 Filiallar ro‘yxati"),
-            KeyboardButton(text="➕ Filial qo‘shish"),
+            KeyboardButton(text="➕ Filial qo‘shish")
         ],
         [
             KeyboardButton(text="❌ Filialni o‘chirish")
@@ -22,19 +22,22 @@ def get_superadmin_kb():
         [
             KeyboardButton(text="👥 Adminlar ro‘yxati"),
             KeyboardButton(text="➕ Admin qo‘shish")
-            [KeyboardButton(text="➕ Adminni filialga biriktirish")],
         ],
         [
+            KeyboardButton(text="🏢➕ Adminni filialga biriktirish"),
             KeyboardButton(text="🗑️ Adminni o‘chirish")
         ],
 
-        # 💰 MOLIYAVIY BO‘LIM
+        # 👷 ISHCHILAR VA MOLIYA BO‘LIMI
         [
-            KeyboardButton(text="💰 Bonus/Jarimalar ro‘yxati"),
-            KeyboardButton(text="📤 Export (Excel/CSV)")
+            KeyboardButton(text="👷 Ishchilar ro‘yxati"),
+            KeyboardButton(text="💰 Bonus / Jarimalar")
+        ],
+        [
+            KeyboardButton(text="📤 Export (Excel / CSV)")
         ],
 
-        # ⚙️ TIZIM VA ORQAGA
+        # ⚙️ TIZIM / ORQAGA
         [
             KeyboardButton(text="⚙️ Sozlamalar"),
             KeyboardButton(text="🧾 Loglar / Jurnallar")
@@ -47,5 +50,6 @@ def get_superadmin_kb():
     return ReplyKeyboardMarkup(
         keyboard=keyboard,
         resize_keyboard=True,
-        one_time_keyboard=False
+        one_time_keyboard=False,
+        input_field_placeholder="Tanlang bo‘lim 👇"
     )
