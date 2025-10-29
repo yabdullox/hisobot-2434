@@ -113,6 +113,16 @@ def init_db():
             auto INTEGER DEFAULT 0
         )
         """
+            # 🗒️ Ishchi eslatmalari jadvali
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS notes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            telegram_id BIGINT NOT NULL,
+            text TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+    """)
+
     ]
 
     try:
