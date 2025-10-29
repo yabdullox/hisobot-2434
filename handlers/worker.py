@@ -239,3 +239,117 @@ async def finish_problem(message: Message, state: FSMContext):
 async def back_to_menu(message: Message, state: FSMContext):
     await state.clear()
     await message.answer("🏠 Asosiy menyuga qaytdingiz.", reply_markup=get_worker_kb())
+
+# ===============================
+# 💰 Bonus / Jarimalarim
+# ===============================
+@router.message(F.text == "💰 Bonus / Jarimalarim")
+async def show_bonus_menu(message: types.Message):
+    """Foydalanuvchiga bonus/jarima tanlash menyusini chiqaradi."""
+    from keyboards.worker_kb import get_bonus_kb
+    await message.answer(
+        "💰 Bonus yoki Jarimalar bo‘limini tanlang:",
+        reply_markup=get_bonus_kb()
+    )
+
+
+@router.message(F.text == "📅 Bugungi")
+async def show_today_bonus_fines(message: types.Message):
+    """Foydalanuvchining bugungi bonus va jarimalarini ko‘rsatadi."""
+    user_id = message.from_user.id
+    today = date.today()
+
+    bonuses = database.fetchall(
+        "SELECT amount, reason FROM bonuses WHERE user_id=:u AND DATE(created_at)=:d",
+        {"u": user_id, "d": today}
+    )
+    fines = database.fetchall(
+        "SELECT amount, reason FROM fines WHERE user_id=:u AND DATE(created_at)=:d",
+        {"u": user_id, "d": today}
+    )
+
+    text = "💰 <b>Bugungi Bonus / Jarimalaringiz:</b>\n\n"
+    if bonuses:
+        for b in bonuses:
+            text += f"✅ +{b['amount']:,} so‘m — {b['reason']}\n"
+    if fines:
+        for f in fines:
+            text += f"❌ -{f['amount']:,} so‘m — {f['reason']}\n"
+    if not bonuses and not fines:
+        text += "📭 Bugun bonus yoki jarima yo‘q."
+
+    await message.answer(text, parse_mode="HTML")
+
+
+@router.message(F.text == "📋 Umumiy")
+async def show_all_bonus_fines(message: types.Message):
+    """Foydalanuvchining umumiy bonus/jarima tarixini chiqaradi."""
+    user_id = message.from_user.id
+    bonuses = database.fetchall(
+        "SELECT amount, reason, created_at FROM bonuses WHERE user_id=:u ORDER BY created_at DESC LIMIT 10",
+        {"u": user_id}
+    )
+    fines = database.fetchall(
+        "SELECT amount, reason, created_at FROM fines WHERE user_id=:u ORDER BY created_at DESC LIMIT 10",
+        {"u": user_id}
+    )
+
+    text = "📊 <b>So‘nggi 10 ta Bonus / Jarimalar:</b>\n\n"
+    if bonuses:
+        for b in bonuses:
+            text += f"✅ {b['created_at'].strftime('%Y-%m-%d')} — +{b['amount']:,} so‘m ({b['reason']})\n"
+    if fines:
+        for f in fines:
+            text += f"❌ {f['created_at'].strftime('%Y-%m-%d')} — -{f['amount']:,} so‘m ({f['reason']})\n"
+
+    if not bonuses and not fines:
+        text += "📭 Ma’lumotlar topilmadi."
+
+    await message.answer(text, parse_mode="HTML")
+
+
+# ===============================
+# 📓 Eslatmalarim
+# ===============================
+@router.message(F.text == "📓 Eslatmalarim")
+async def show_notes(message: types.Message):
+    """Foydalanuvchining oxirgi 10 ta eslatmasini ko‘rsatadi."""
+    user_id = message.from_user.id
+    notes = database.fetchall(
+        "SELECT text, created_at FROM notes WHERE telegram_id=:u ORDER BY created_at DESC LIMIT 10",
+        {"u": user_id}
+    )
+
+    if not notes:
+        await message.answer("📓 Sizda hali eslatmalar yo‘q.\n✏️ Yangi eslatma yozish uchun xabar yuboring.")
+    else:
+        text = "📒 <b>Sizning eslatmalaringiz:</b>\n\n"
+        for n in notes:
+            t = n['created_at'].strftime('%Y-%m-%d %H:%M')
+            text += f"🕒 {t}\n📝 {n['text']}\n\n"
+        await message.answer(text, parse_mode="HTML")
+
+
+@router.message(F.text.regexp(r".+") & ~F.text.in_([
+    "🕘 Ishni boshladim", "🏁 Ishni tugatdim",
+    "🧹 Tozalash rasmi yuborish", "💬 Muammo yuborish",
+    "🧾 Bugungi hisobotni yuborish", "💰 Bonus / Jarimalarim",
+    "📓 Eslatmalarim", "⬅️ Menyuga qaytish",
+    "📅 Bugungi", "📋 Umumiy"
+]))
+async def save_note(message: types.Message):
+    """Foydalanuvchi yuborgan matnni eslatma sifatida saqlaydi."""
+    user_id = message.from_user.id
+    text = message.text.strip()
+
+    if not text:
+        await message.answer("⚠️ Eslatma bo‘sh bo‘lishi mumkin emas.")
+        return
+
+    database.execute(
+        "INSERT INTO notes (telegram_id, text) VALUES (:u, :t)",
+        {"u": user_id, "t": text}
+    )
+
+    await message.answer("📝 Eslatma saqlandi (faqat sizga ko‘rinadi).")
+
