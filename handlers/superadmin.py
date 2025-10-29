@@ -292,6 +292,41 @@ async def add_admin_finish(message: Message, state: FSMContext):
     await state.clear()
     await message.answer("✅ Admin qo‘shildi.")
 
+
+
+
+
+# ===============================
+# ➕ Adminni filialga biriktirish
+# ===============================
+
+
+@router.message(F.text == "➕ Adminni filialga biriktirish")
+async def ask_admin_branch(message: types.Message):
+    await message.answer(
+        "🧩 Iltimos, quyidagi formatda yuboring:\n\n"
+        "<code>admin_id, branch_id</code>\n\n"
+        "Masalan: <code>8020655627, 1202</code>",
+        parse_mode="HTML"
+    )
+
+
+@router.message(F.text.regexp(r"^\d+,\s*\d+$"))
+async def process_admin_branch(message: types.Message):
+    try:
+        admin_id, branch_id = map(int, message.text.replace(" ", "").split(","))
+        database.add_admin_to_branch(admin_id, branch_id)
+        await message.answer(
+            f"✅ Admin <code>{admin_id}</code> filial <b>{branch_id}</b> ga muvaffaqiyatli biriktirildi!",
+            parse_mode="HTML"
+        )
+    except Exception as e:
+        await message.answer(f"⚠️ Xato: {e}")
+
+
+
+
+
 # ===============================
 # 🗑️ Adminni o‘chirish
 # ===============================
