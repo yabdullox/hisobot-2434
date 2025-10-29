@@ -87,27 +87,24 @@
 #     else:
 #         await message.answer("⚠️ Tizimda ro‘lingiz aniqlanmadi.")
 # src/handlers/start.py
+# start.py (misol)
 from aiogram import Router, F, types
 from aiogram.filters import Command
+from database import fetchone, execute
 from keyboards.superadmin_kb import get_superadmin_kb
 from keyboards.admin_kb import get_admin_kb
 from keyboards.worker_kb import get_worker_kb
-from database import fetchone, execute
 from config import SUPERADMIN_ID
 
 router = Router()
 
-
-
-# ===================== /start komandasi =====================
 @router.message(Command("start"))
 async def cmd_start(message: types.Message):
     tg_id = message.from_user.id
     full_name = message.from_user.full_name
 
-    # 🔹 SuperAdmin
-    allowed = [s.strip() for s in str(SUPERADMIN_ID).split(",") if s.strip()]
-    if str(tg_id) in allowed:
+    # agar tg_id superadmin ro'yxatida bo'lsa:
+    if str(tg_id) in SUPERADMIN_ID:
         user = fetchone("SELECT * FROM users WHERE telegram_id = :tid", {"tid": tg_id})
         if not user:
             execute("""
@@ -122,7 +119,7 @@ async def cmd_start(message: types.Message):
         )
         return
 
-    # 🔹 Oddiy foydalanuvchi
+    # oddiy foydalanuchi = tekshirish DBda bor yoki yo'q
     user = fetchone("SELECT role FROM users WHERE telegram_id=:tid", {"tid": tg_id})
     if not user:
         await message.answer("👋 Salom! Siz hali tizimda ro‘yxatdan o‘tmagansiz.")
@@ -130,16 +127,9 @@ async def cmd_start(message: types.Message):
 
     role = user["role"]
     if role == "admin":
-        await message.answer(
-            "👨‍💼 <b>Salom, Filial Admin!</b>\nSiz filial boshqaruv panelidasiz.",
-            reply_markup=get_admin_kb(),
-            parse_mode="HTML"
-        )
+        await message.answer("👨‍💼 Salom, Filial Admin!", reply_markup=get_admin_kb())
     elif role == "worker":
-        await message.answer(
-            "👷‍♂️ <b>Salom, Ishchi!</b>\nHisobot tizimi ishga tayyor.",
-            reply_markup=get_worker_kb(),
-            parse_mode="HTML"
-        )
+        await message.answer("👷 Salom, Ishchi!", reply_markup=get_worker_kb())
     else:
         await message.answer("⚠️ Sizning ro‘lingiz aniqlanmadi.")
+
