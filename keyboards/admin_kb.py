@@ -13,6 +13,15 @@ def get_admin_kb():
             KeyboardButton(text="🗑️ Ishchini o‘chirish")
         ],
 
+        # 🏢 FILIALLAR BO‘LIMI
+        [
+            KeyboardButton(text="🏢 Filiallar ro‘yxati"),
+            KeyboardButton(text="➕ Filial qo‘shish")
+        ],
+        [
+            KeyboardButton(text="❌ Filialni o‘chirish")
+        ],
+
         # 💰 MOLIYAVIY BO‘LIM
         [
             KeyboardButton(text="💰 Jarima/Bonus yozish"),
@@ -26,7 +35,6 @@ def get_admin_kb():
 
         # ⚙️ TIZIM / ORQAGA
         [
-            
             KeyboardButton(text="⬅️ Menyuga qaytish")
         ]
     ]
