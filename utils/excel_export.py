@@ -90,7 +90,7 @@ def export_reports_to_excel(reports, branch_name="Barcha Filiallar", report_type
 
         # Ustun kengliklarini avtomatik sozlash
         for i, col in enumerate(df.columns):
-            max_len = max(df[col].astype(str).map(len).max(), len(col))
+           max_len = max(df[col].astype(str).map(len).max(), len(str(col)))
             worksheet.set_column(i, i, min(max_len + 3, 40))
 
         # ====== Footer (pastda) ======
@@ -100,3 +100,4 @@ def export_reports_to_excel(reports, branch_name="Barcha Filiallar", report_type
                               footer_format)
 
     return file_path
+
