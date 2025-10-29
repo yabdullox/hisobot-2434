@@ -149,26 +149,10 @@ def create_notes_table():
     logging.info("✅ Notes table checked or created successfully.")
 
 
-def clear_all_data():
-    """⚠️ Barcha jadvallardagi ma’lumotlarni o‘chiradi (strukturani saqlaydi)."""
-    try:
-        with engine.begin() as conn:
-            conn.execute(text("TRUNCATE TABLE reports, problems, cleaning_photos, fines, bonuses, notes, admin_branches, users, branches RESTART IDENTITY CASCADE"))
-        logging.info("🧹 All tables cleared successfully!")
-    except Exception as e:
-        logging.error(f"❌ Failed to clear tables: {e}")
-
-if __name__ == "__main__":
-    print("🚨 WARNING: Clearing all data from database...")
-    clear_all_data()
-    init_db()
-    create_notes_table()
-    print("✅ Database reset successfully. All tables are empty now.")
-
 # ===============================
 # 🔹 Barcha jadvallarni ishga tushirish
 # ===============================
-# if __name__ == "__main__":
-#     init_db()
-#     create_notes_table()
-#     print("✅ Database and tables initialized successfully.")
+if __name__ == "__main__":
+    init_db()
+    create_notes_table()
+    print("✅ Database and tables initialized successfully.")
