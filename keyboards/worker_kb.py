@@ -1,6 +1,5 @@
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 
-
 # 👷 Ishchi menyusi uchun keyboard
 def get_worker_kb():
     kb = [
@@ -18,9 +17,6 @@ def get_worker_kb():
         [
             KeyboardButton(text="💰 Bonus / Jarimalarim"),
             KeyboardButton(text="📓 Eslatmalarim")
-        ],
-        [
-            KeyboardButton(text="⬅️ Menyuga qaytish")
         ]
     ]
     return ReplyKeyboardMarkup(
