@@ -1,24 +1,20 @@
 from aiogram import Router, F, types
-from aiogram.types import Message, FSInputFile, ReplyKeyboardMarkup, KeyboardButton
+from aiogram.types import ReplyKeyboardRemove
 from datetime import datetime, date, time
 from config import SUPERADMIN_ID, ADMIN_ID
 import database
+from keyboards.worker_kb import get_worker_kb, get_bonus_kb
 import os
 
 router = Router()
 
-# Vaqtinchalik holatlar uchun xotira (eslatmalar, muammolar va h.k.)
-WORKER_STATE = {}
-
 # ===============================
-# 👷 /start komandasi
+# /start
 # ===============================
 @router.message(F.text == "/start")
-async def start_worker(message: Message):
+async def start_worker(message: types.Message):
     await message.answer(
-        "👷 Salom, ishchi!\n"
-        "Hisobot tizimiga xush kelibsiz.\n"
-        "Quyidagi menyudan tanlang 👇",
+        "👷 Salom, Ishchi!\nHisobot tizimi ishga tayyor.\nQuyidagi menyudan tanlang 👇",
         reply_markup=get_worker_kb()
     )
 
@@ -27,7 +23,7 @@ async def start_worker(message: Message):
 # 🕘 Ishni boshladim
 # ===============================
 @router.message(F.text == "🕘 Ishni boshladim")
-async def start_work(message: Message):
+async def start_work(message: types.Message):
     user_id = message.from_user.id
     now = datetime.now()
     today = now.date()
@@ -46,27 +42,17 @@ async def start_work(message: Message):
         VALUES (:u, :d, :t)
     """, {"u": user_id, "d": today, "t": start_time})
 
-    # Avtomatik bonus/jarima logikasi
+    # Bonus / jarima logikasi
     ish_boshlash_vaqti = time(9, 0)
-    farq_daqiqa = (datetime.combine(today, now.time()) -
-                   datetime.combine(today, ish_boshlash_vaqti)).total_seconds() / 60
-
-    worker = database.fetchone(
-        "SELECT id, branch_id FROM users WHERE telegram_id=:t",
-        {"t": user_id}
-    )
-    if not worker:
-        await message.answer("❌ Siz tizimda ro‘yxatdan o‘tmagansiz.")
-        return
+    farq_daqiqa = (datetime.combine(today, now.time()) - datetime.combine(today, ish_boshlash_vaqti)).total_seconds() / 60
 
     if farq_daqiqa > 10:
         penalty = round((farq_daqiqa / 60) * 10000)
         database.execute("""
-            INSERT INTO fines (user_id, branch_id, amount, reason, created_by, auto)
-            VALUES (:u, :b, :a, :r, :c, TRUE)
+            INSERT INTO fines (user_id, amount, reason, created_by, auto)
+            VALUES (:u, :a, :r, :c, TRUE)
         """, {
-            "u": worker["id"],
-            "b": worker["branch_id"],
+            "u": user_id,
             "a": penalty,
             "r": "Kech qolganligi uchun avtomatik jarima",
             "c": user_id
@@ -75,11 +61,10 @@ async def start_work(message: Message):
     elif farq_daqiqa < 0:
         bonus = round((abs(farq_daqiqa) / 60) * 10000)
         database.execute("""
-            INSERT INTO bonuses (user_id, branch_id, amount, reason, created_by, auto)
-            VALUES (:u, :b, :a, :r, :c, TRUE)
+            INSERT INTO bonuses (user_id, amount, reason, created_by, auto)
+            VALUES (:u, :a, :r, :c, TRUE)
         """, {
-            "u": worker["id"],
-            "b": worker["branch_id"],
+            "u": user_id,
             "a": bonus,
             "r": "Erta kelganligi uchun avtomatik bonus",
             "c": user_id
@@ -88,11 +73,11 @@ async def start_work(message: Message):
 
     await message.answer(f"🕘 Ish boshlanish vaqti saqlandi: {start_time}")
 
-    # Superadmin va adminlarga xabar yuborish
+    # Superadmin/Adminlarga xabar
     try:
-        await message.bot.send_message(SUPERADMIN_ID, f"👷 Ishchi {user_id} ishni boshladi ({start_time})")
+        await message.bot.send_message(SUPERADMIN_ID, f"👷 Ishchi {message.from_user.full_name} ({user_id}) ishni boshladi ({start_time})")
         if ADMIN_ID:
-            await message.bot.send_message(ADMIN_ID, f"👷 Ishchi {user_id} ishni boshladi ({start_time})")
+            await message.bot.send_message(ADMIN_ID, f"👷 Ishchi {message.from_user.full_name} ({user_id}) ishni boshladi ({start_time})")
     except Exception:
         pass
 
@@ -101,7 +86,7 @@ async def start_work(message: Message):
 # 🏁 Ishni tugatdim
 # ===============================
 @router.message(F.text == "🏁 Ishni tugatdim")
-async def finish_work(message: Message):
+async def finish_work(message: types.Message):
     user_id = message.from_user.id
     now = datetime.now()
     today = now.date()
@@ -119,67 +104,30 @@ async def finish_work(message: Message):
         UPDATE reports SET end_time=:t WHERE id=:id
     """, {"t": end_time, "id": report["id"]})
 
-    await message.answer(
-        f"🏁 Ish tugash vaqti saqlandi: {end_time}\n\n"
-        "Endi '📤 Bugungi hisobotni yuboring' tugmasini bosing."
-    )
+    await message.answer(f"🏁 Ish tugash vaqti saqlandi: {end_time}")
+    await message.answer("Endi 📤 <b>Bugungi hisobotni yuboring</b> tugmasini bosing.", parse_mode="HTML")
 
-    # Superadmin va adminlarga avtomatik xabar
     try:
-        await message.bot.send_message(SUPERADMIN_ID, f"🏁 Ishchi {user_id} ishni tugatdi ({end_time})")
+        await message.bot.send_message(SUPERADMIN_ID, f"🏁 Ishchi {message.from_user.full_name} ishni tugatdi ({end_time})")
         if ADMIN_ID:
-            await message.bot.send_message(ADMIN_ID, f"🏁 Ishchi {user_id} ishni tugatdi ({end_time})")
+            await message.bot.send_message(ADMIN_ID, f"🏁 Ishchi {message.from_user.full_name} ishni tugatdi ({end_time})")
     except Exception:
         pass
 
 
 # ===============================
-# 💬 Muammo yuborish
+# 📸 Tozalash rasmi yuborish
 # ===============================
-@router.message(F.text == "💬 Muammo yuborish")
-async def send_problem(message: Message):
-    await message.answer("📷 Muammoning suratini yuboring yoki yozma tarzda kiriting.")
-    WORKER_STATE[message.from_user.id] = {"awaiting_issue": True}
+@router.message(F.text == "🧹 Tozalash rasmi yuborish")
+async def ask_photo(message: types.Message):
+    await message.answer("📷 Iltimos, tozalangan joyning rasmini yuboring.")
 
 
 @router.message(F.photo)
-async def receive_problem_photo(message: Message):
-    state = WORKER_STATE.get(message.from_user.id)
-    if state and state.get("awaiting_issue"):
-        photo_id = message.photo[-1].file_id
-        await message.bot.send_photo(SUPERADMIN_ID, photo_id, caption=f"⚠️ Muammo rasmi: {message.from_user.full_name}")
-        if ADMIN_ID:
-            await message.bot.send_photo(ADMIN_ID, photo_id, caption=f"⚠️ Muammo rasmi: {message.from_user.full_name}")
-        await message.answer("✅ Muammo rasmi yuborildi.")
-        WORKER_STATE[message.from_user.id] = {}
-
-
-@router.message()
-async def receive_problem_text(message: Message):
-    state = WORKER_STATE.get(message.from_user.id)
-    if state and state.get("awaiting_issue"):
-        text = message.text
-        caption = f"⚠️ Muammo:\n👷 {message.from_user.full_name}\n📝 {text}"
-        await message.bot.send_message(SUPERADMIN_ID, caption)
-        if ADMIN_ID:
-            await message.bot.send_message(ADMIN_ID, caption)
-        await message.answer("✅ Muammo yuborildi.")
-        WORKER_STATE[message.from_user.id] = {}
-
-
-# ===============================
-# 🧹 Tozalash rasmi yuborish
-# ===============================
-@router.message(F.text == "🧹 Tozalash rasmi yuborish")
-async def cleaning_request(message: Message):
-    await message.answer("📸 Iltimos, tozalangan joyning rasmini yuboring.")
-
-
-@router.message(F.photo & ~F.text)
-async def save_cleaning_photo(message: Message):
+async def save_cleaning_photo(message: types.Message):
     user_id = message.from_user.id
-    photo_id = message.photo[-1].file_id
     today = date.today()
+    photo_id = message.photo[-1].file_id
 
     report = database.fetchone(
         "SELECT id FROM reports WHERE user_id=:u AND date=:d",
@@ -194,102 +142,122 @@ async def save_cleaning_photo(message: Message):
         VALUES (:u, :r, :f)
     """, {"u": user_id, "r": report["id"], "f": photo_id})
 
-    await message.answer("✅ Tozalash rasmi saqlandi!")
+    await message.answer("✅ Tozalash rasmi saqlandi! Rahmat.")
+
+    # Superadmin va adminlarga yuboriladi
     try:
-        await message.bot.send_photo(SUPERADMIN_ID, photo_id, caption=f"🧹 Tozalash rasmi - {message.from_user.full_name}")
+        await message.bot.send_photo(SUPERADMIN_ID, photo_id, caption=f"🧹 Ishchi {message.from_user.full_name} tozalash rasmini yubordi.")
         if ADMIN_ID:
-            await message.bot.send_photo(ADMIN_ID, photo_id, caption=f"🧹 Tozalash rasmi - {message.from_user.full_name}")
+            await message.bot.send_photo(ADMIN_ID, photo_id, caption=f"🧹 Ishchi {message.from_user.full_name} tozalash rasmini yubordi.")
     except Exception:
         pass
 
 
 # ===============================
-# 📓 Eslatmalar (Notes)
+# 💬 Muammo yuborish
+# ===============================
+@router.message(F.text == "💬 Muammo yuborish")
+async def send_problem(message: types.Message):
+    await message.answer("✏️ Muammo tafsilotlarini yozing. Agar kerak bo‘lsa, rasm ham yuborishingiz mumkin.")
+
+
+@router.message(F.text.regexp(r".+") & ~F.text.in_(["🕘 Ishni boshladim", "🏁 Ishni tugatdim", "🧹 Tozalash rasmi yuborish", "💰 Bonus/Jarimalarim", "📓 Eslatmalarim"]))
+async def handle_problem_text(message: types.Message):
+    user_id = message.from_user.id
+    text = message.text
+
+    database.execute("""
+        INSERT INTO problems (user_id, text, created_at)
+        VALUES (:u, :t, CURRENT_TIMESTAMP)
+    """, {"u": user_id, "t": text})
+
+    await message.answer("📩 Muammo matni saqlandi va yuborildi.")
+
+    try:
+        await message.bot.send_message(SUPERADMIN_ID, f"⚠️ Ishchidan muammo xabari:\n\n{text}")
+        if ADMIN_ID:
+            await message.bot.send_message(ADMIN_ID, f"⚠️ Ishchidan muammo xabari:\n\n{text}")
+    except Exception:
+        pass
+
+
+# ===============================
+# 💰 Bonus / Jarimalar
+# ===============================
+@router.message(F.text == "💰 Bonus/Jarimalarim")
+async def show_bonus_menu(message: types.Message):
+    await message.answer("💰 Bonus yoki jarimalar hisobotini tanlang:", reply_markup=get_bonus_kb())
+
+
+@router.message(F.text == "📅 Bugungi")
+async def show_today_bonus_fines(message: types.Message):
+    user_id = message.from_user.id
+    today = date.today()
+
+    bonuses = database.fetchall("SELECT * FROM bonuses WHERE user_id=:u AND DATE(created_at)=:d", {"u": user_id, "d": today})
+    fines = database.fetchall("SELECT * FROM fines WHERE user_id=:u AND DATE(created_at)=:d", {"u": user_id, "d": today})
+
+    text = "💰 <b>Bugungi Bonus va Jarimalar:</b>\n\n"
+    if bonuses:
+        for b in bonuses:
+            text += f"✅ +{b['amount']:,} so‘m — {b['reason']}\n"
+    if fines:
+        for f in fines:
+            text += f"❌ -{f['amount']:,} so‘m — {f['reason']}\n"
+    if not bonuses and not fines:
+        text += "📭 Bugun bonus yoki jarima yo‘q."
+
+    await message.answer(text, parse_mode="HTML")
+
+
+@router.message(F.text == "📋 Umumiy")
+async def show_all_bonus_fines(message: types.Message):
+    user_id = message.from_user.id
+    bonuses = database.fetchall("SELECT * FROM bonuses WHERE user_id=:u", {"u": user_id})
+    fines = database.fetchall("SELECT * FROM fines WHERE user_id=:u", {"u": user_id})
+
+    text = "💰 <b>So‘nggi 20 ta Bonus va Jarimalar:</b>\n\n"
+    for b in bonuses[-10:]:
+        text += f"✅ +{b['amount']:,} so‘m | {b['reason']}\n"
+    for f in fines[-10:]:
+        text += f"❌ -{f['amount']:,} so‘m | {f['reason']}\n"
+
+    await message.answer(text or "📭 Ma’lumot yo‘q.", parse_mode="HTML")
+
+
+# ===============================
+# 📓 Eslatmalar
 # ===============================
 @router.message(F.text == "📓 Eslatmalarim")
-async def notes_menu(message: Message):
-    tg_id = message.from_user.id
-    notes = database.fetchall(
-        "SELECT text, created_at FROM notes WHERE telegram_id=:tid ORDER BY id DESC LIMIT 10",
-        {"tid": tg_id}
-    )
+async def show_notes(message: types.Message):
+    user_id = message.from_user.id
+    notes = database.fetchall("SELECT * FROM notes WHERE telegram_id=:u", {"u": user_id})
 
     if not notes:
-        await message.answer(
-            "📓 Sizda hali eslatma yo‘q.\n\n📝 Yangi eslatma yozing:",
-            reply_markup=ReplyKeyboardMarkup(
-                keyboard=[
-                    [KeyboardButton(text="🆕 Yangi eslatma yozish")],
-                    [KeyboardButton(text="⬅️ Menyuga qaytish")]
-                ],
-                resize_keyboard=True
-            )
-        )
-        return
-
-    text = "📓 <b>Sizning so‘nggi 10 ta eslatmangiz:</b>\n\n"
-    for note in notes:
-        t = note["created_at"].split(" ")[0]
-        text += f"🗓️ {t}\n📝 {note['text']}\n\n"
-
-    await message.answer(
-        text,
-        parse_mode="HTML",
-        reply_markup=ReplyKeyboardMarkup(
-            keyboard=[
-                [KeyboardButton(text="🆕 Yangi eslatma yozish")],
-                [KeyboardButton(text="⬅️ Menyuga qaytish")]
-            ],
-            resize_keyboard=True
-        )
-    )
+        await message.answer("📓 Sizda hali eslatmalar yo‘q.\n✏️ Eslatma yozish uchun xabar yuboring.")
+    else:
+        text = "📒 <b>Sizning eslatmalaringiz:</b>\n\n"
+        for n in notes[-10:]:
+            text += f"🕒 {n['created_at']}\n📝 {n['text']}\n\n"
+        await message.answer(text, parse_mode="HTML")
 
 
-@router.message(F.text == "🆕 Yangi eslatma yozish")
-async def add_note_prompt(message: Message):
-    await message.answer("📝 Iltimos, eslatmani yozing:")
-    WORKER_STATE[message.from_user.id] = {"awaiting_note": True}
+@router.message(F.text.regexp(r".+") & ~F.text.in_(["🕘 Ishni boshladim", "🏁 Ishni tugatdim", "🧹 Tozalash rasmi yuborish", "💰 Bonus/Jarimalarim", "⬅️ Menyuga qaytish"]))
+async def save_note(message: types.Message):
+    user_id = message.from_user.id
+    text = message.text
 
+    database.execute("""
+        INSERT INTO notes (telegram_id, text)
+        VALUES (:u, :t)
+    """, {"u": user_id, "t": text})
 
-@router.message()
-async def save_note_if_needed(message: Message):
-    tg_id = message.from_user.id
-    state = WORKER_STATE.get(tg_id, {})
-
-    if state.get("awaiting_note"):
-        text = message.text.strip()
-        if len(text) < 2:
-            await message.answer("⚠️ Eslatma juda qisqa, qayta yozing.")
-            return
-
-        database.execute(
-            "INSERT INTO notes (telegram_id, text) VALUES (:tid, :text)",
-            {"tid": tg_id, "text": text}
-        )
-        await message.answer("✅ Eslatma saqlandi!", reply_markup=get_worker_kb())
-        WORKER_STATE[tg_id] = {}
+    await message.answer("📝 Eslatma saqlandi (faqat sizda ko‘rinadi).")
 
 
 # ===============================
 # ⬅️ Menyuga qaytish
 # ===============================
 @router.message(F.text == "⬅️ Menyuga qaytish")
-async def back_to_menu(message: Message):
+async def back_to_menu(message: types.Message):
     await message.answer("🏠 Asosiy menyuga qaytdingiz.", reply_markup=get_worker_kb())
-
-
-# ===============================
-# Klaviatura
-# ===============================
-def get_worker_kb():
-    kb = [
-        [KeyboardButton(text="🕘 Ishni boshladim"), KeyboardButton(text="🏁 Ishni tugatdim")],
-        [KeyboardButton(text="🧹 Tozalash rasmi yuborish"), KeyboardButton(text="💬 Muammo yuborish")],
-        [KeyboardButton(text="💰 Bonus/Jarimalarim"), KeyboardButton(text="📓 Eslatmalarim")],
-        [KeyboardButton(text="⬅️ Menyuga qaytish")]
-    ]
-    return ReplyKeyboardMarkup(
-        keyboard=kb,
-        resize_keyboard=True,
-        one_time_keyboard=False
-    )
