@@ -164,4 +164,4 @@ async def save_cleaning_photo(message: Message):
 # ===============================
 @router.message(F.text == "⬅️ Menyuga qaytish")
 async def back_to_menu(message: Message):
-    await message.answer("🏠 Asosiy menyuga qaytdingiz.", reply_markup=None)shungayozbber kerakligini 
+    await message.answer("🏠 Asosiy menyuga qaytdingiz.", reply_markup=None)
