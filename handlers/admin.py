@@ -18,23 +18,41 @@ class AddWorker(StatesGroup):
 # ================== START ==================
 @router.message(Command("start"))
 async def admin_start(message: types.Message):
-    admin = database.fetchone("SELECT * FROM users WHERE telegram_id=:tid", {"tid": message.from_user.id})
+    telegram_id = message.from_user.id
+    full_name = message.from_user.full_name or "Admin"
 
-    # Agar admin DBda yo'q bo‘lsa, ro‘yxatdan o‘tkazamiz
+    # 🔹 Adminni bazadan topamiz
+    admin = database.fetchone(
+        "SELECT * FROM users WHERE telegram_id=:tid",
+        {"tid": telegram_id}
+    )
+
+    # 🔹 Agar admin yo‘q bo‘lsa — yangi yozuv yaratiladi
     if not admin:
         database.execute("""
             INSERT INTO users (telegram_id, full_name, role, branch_id)
             VALUES (:tid, :name, 'admin', 1)
-        """, {"tid": message.from_user.id, "name": message.from_user.full_name})
-        admin = database.fetchone("SELECT * FROM users WHERE telegram_id=:tid", {"tid": message.from_user.id})
+        """, {"tid": telegram_id, "name": full_name})
 
-    # Agar adminning filial ID yo‘q bo‘lsa, avtomatik 1 ga tayinlaymiz
-    if not admin["branch_id"]:
-        database.execute("UPDATE users SET branch_id=1 WHERE telegram_id=:tid", {"tid": message.from_user.id})
+        # Yangi yozilgan ma’lumotni qayta olamiz
+        admin = database.fetchone(
+            "SELECT * FROM users WHERE telegram_id=:tid",
+            {"tid": telegram_id}
+        )
 
-    await message.answer(f"👋 Salom, {admin['full_name']}!\nSiz Filial Admin panelidasiz.",
-                         reply_markup=get_admin_kb())
+    # 🔹 Agar branch_id yo‘q bo‘lsa, 1 ga tayinlaymiz (default)
+    if not admin.get("branch_id"):
+        database.execute(
+            "UPDATE users SET branch_id=1 WHERE telegram_id=:tid",
+            {"tid": telegram_id}
+        )
 
+    # 🔹 Xabar yuborish
+    await message.answer(
+        f"👋 Salom, {admin['full_name']}!\n"
+        f"Siz Filial Admin panelidasiz.",
+        reply_markup=get_admin_kb()
+    )
 
 # ================== ISHCHILAR RO‘YXATI ==================
 @router.message(F.text == "👥 Ishchilar ro‘yxati")
