@@ -1,14 +1,17 @@
-from aiogram import Router, F, types
-from aiogram.types import ReplyKeyboardRemove
-from datetime import datetime, date, time
-from config import SUPERADMIN_ID, ADMIN_ID
-from keyboards.worker_kb import get_worker_kb, get_bonus_kb
+from aiogram import Router, F
+from aiogram.fsm.context import FSMContext
+from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import Message
-from database import add_report
+from datetime import datetime, date, time
 import database
 import os
 
 router = Router()
+
+
+class ProblemFSM(StatesGroup):
+    waiting_description = State()
+    waiting_photo = State()
 
 # ===============================
 # /start
@@ -116,11 +119,111 @@ async def finish_work(message: types.Message):
     except Exception:
         pass
 
-# 📤 Bugungi hisobotni yuborish
-@router.message(F.text == "📤 Bugungi hisobotni yuborish")
-async def send_daily_report(message: Message):
-    telegram_id = message.from_user.id
-    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+# ===============================
+# 💬 Muammo yuborish
+# ===============================
+@router.message(F.text == "💬 Muammo yuborish")
+async def send_problem(message: Message, state: FSMContext):
+    await state.set_state(ProblemFSM.waiting_description)
+    await message.answer(
+        "� Muammoni batafsil yozib yuboring. Agar kerak bo'lsa, keyin surat ham yuborishingiz mumkin."
+    )
+
+
+@router.message(ProblemFSM.waiting_description, F.text)
+async def handle_problem_text(message: Message, state: FSMContext):
+    description = message.text.strip()
+    if not description:
+        await message.answer("❗️ Muammo matni bo'sh. Iltimos, yana kiriting.")
+        return
+
+    user_id = message.from_user.id
+    worker = database.fetchone("SELECT id, branch_id FROM users WHERE telegram_id=:tid", {"tid": user_id})
+    if not worker:
+        await state.clear()
+        await message.answer("❌ Siz tizimda ro'yxatdan o'tmagansiz.")
+        return
+
+    report = database.fetchone(
+        "SELECT id FROM reports WHERE user_id=:uid AND date=:d",
+        {"uid": user_id, "d": date.today()},
+    )
+
+    problem_id = database.execute_returning(
+        """
+        INSERT INTO problems (user_id, branch_id, report_id, description)
+        VALUES (:u, :b, :r, :descr)
+        RETURNING id
+        """,
+        {
+            "u": user_id,
+            "b": worker["branch_id"],
+            "r": report["id"] if report else None,
+            "descr": description,
+        },
+    )
+
+    if problem_id is None:
+        last_row = database.fetchone(
+            "SELECT id FROM problems WHERE user_id=:u ORDER BY id DESC LIMIT 1",
+            {"u": user_id},
+        )
+        problem_id = last_row["id"] if last_row else None
+
+    await state.update_data(problem_id=problem_id)
+    await state.set_state(ProblemFSM.waiting_photo)
+    await message.answer(
+        "✅ Muammo matni saqlandi. Agar surat yubormoqchi bo'lsangiz, hozir jo'nating."
+        " Surat kerak bo'lmasa, '✅ Tayyor' deb yozing."
+    )
+
+
+@router.message(ProblemFSM.waiting_photo, F.photo)
+async def handle_problem_photo(message: Message, state: FSMContext):
+    data = await state.get_data()
+    problem_id = data.get("problem_id")
+    if not problem_id:
+        await message.answer("⚠️ Avval muammo matnini yuboring.")
+        return
+
+    photo_id = message.photo[-1].file_id
+    database.execute(
+        "UPDATE problems SET photo_file_id=:photo WHERE id=:pid",
+        {"photo": photo_id, "pid": problem_id},
+    )
+
+    await state.clear()
+    await message.answer("📸 Muammo surati qabul qilindi. Rahmat!")
+
+
+@router.message(ProblemFSM.waiting_photo, F.text)
+async def finalize_problem(message: Message, state: FSMContext):
+    text_content = message.text.strip()
+    data = await state.get_data()
+    problem_id = data.get("problem_id")
+
+    if not problem_id:
+        await state.clear()
+        await message.answer("⚠️ Muammo holati topilmadi. Iltimos, qayta urinib ko'ring.")
+        return
+
+    if text_content.lower() in {"✅ tayyor", "tayyor", "done", "ok"}:
+        await state.clear()
+        await message.answer("✅ Muammo qabul qilindi. Rahmat!")
+        return
+
+    database.execute(
+        """
+        UPDATE problems
+        SET description = COALESCE(description, '') || '\n' || :extra
+        WHERE id = :pid
+        """,
+        {"extra": text_content, "pid": problem_id},
+    )
+
+    await message.answer(
+        "📝 Qo'shimcha ma'lumot saqlandi. Surat yubormoqchi bo'lsangiz, davom eting yoki '✅ Tayyor' deb yozing."
+    )
 
     # ✅ Hisobotni bazaga saqlash (agar add_report funksiyasi bo'lsa)
     try:
@@ -160,7 +263,11 @@ async def ask_photo(message: types.Message):
 
 
 @router.message(F.photo)
-async def save_cleaning_photo(message: types.Message):
+async def save_cleaning_photo(message: Message, state: FSMContext):
+    if await state.get_state() == ProblemFSM.waiting_photo.state:
+        # Bu handlerga tushmasligi kerak, biroq xavfsizlik uchun tekshiruv
+        return
+
     user_id = message.from_user.id
     today = date.today()
     photo_id = message.photo[-1].file_id
@@ -295,5 +402,6 @@ async def save_note(message: types.Message):
 # ⬅️ Menyuga qaytish
 # ===============================
 @router.message(F.text == "⬅️ Menyuga qaytish")
-async def back_to_menu(message: types.Message):
-    await message.answer("🏠 Asosiy menyuga qaytdingiz.", reply_markup=get_worker_kb())
+async def back_to_menu(message: Message, state: FSMContext):
+    await state.clear()
+    await message.answer("🏠 Asosiy menyuga qaytdingiz.", reply_markup=None)
