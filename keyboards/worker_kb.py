@@ -4,15 +4,29 @@ from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 # 👷 Ishchi menyusi uchun keyboard
 def get_worker_kb():
     kb = [
-        [KeyboardButton(text="🕘 Ishni boshladim"), KeyboardButton(text="🏁 Ishni tugatdim")],
-        [KeyboardButton(text="🧹 Tozalash rasmi yuborish"), KeyboardButton(text="💬 Muammo yuborish")],
-        [KeyboardButton(text="📤 Bugungi hisobotni yuborish")],  # ✅ yangi tugma
-        [KeyboardButton(text="💰 Bonus / Jarimalarim"), KeyboardButton(text="📓 Eslatmalarim")],
-        [KeyboardButton(text="⬅️ Menyuga qaytish")]
+        [
+            KeyboardButton(text="🕘 Ishni boshladim"),
+            KeyboardButton(text="🏁 Ishni tugatdim")
+        ],
+        [
+            KeyboardButton(text="🧹 Tozalash rasmi yuborish"),
+            KeyboardButton(text="💬 Muammo yuborish")
+        ],
+        [
+            KeyboardButton(text="🧾 Bugungi hisobotni yuborish")
+        ],
+        [
+            KeyboardButton(text="💰 Bonus / Jarimalarim"),
+            KeyboardButton(text="📓 Eslatmalarim")
+        ],
+        [
+            KeyboardButton(text="⬅️ Menyuga qaytish")
+        ]
     ]
     return ReplyKeyboardMarkup(
         keyboard=kb,
         resize_keyboard=True,
+        input_field_placeholder="Tanlang 👇",
         one_time_keyboard=False
     )
 
@@ -20,12 +34,18 @@ def get_worker_kb():
 # 💰 Bonus / Jarima bo‘limi uchun keyboard
 def get_bonus_kb():
     kb = [
-        [KeyboardButton(text="📅 Bugungi"), KeyboardButton(text="📋 Umumiy")],
-        [KeyboardButton(text="⬅️ Orqaga")]
+        [
+            KeyboardButton(text="📅 Bugungi"),
+            KeyboardButton(text="📋 Umumiy")
+        ],
+        [
+            KeyboardButton(text="⬅️ Orqaga")
+        ]
     ]
     return ReplyKeyboardMarkup(
         keyboard=kb,
         resize_keyboard=True,
+        input_field_placeholder="Bonus / Jarima hisobotini tanlang 👇",
         one_time_keyboard=False
     )
 
@@ -37,5 +57,6 @@ def get_main_kb():
     ]
     return ReplyKeyboardMarkup(
         keyboard=kb,
-        resize_keyboard=True
+        resize_keyboard=True,
+        input_field_placeholder="Asosiy menyudan tanlang 👇"
     )
