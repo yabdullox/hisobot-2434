@@ -13,6 +13,18 @@ router = Router()
 class AddWorker(StatesGroup):
     name = State()
     telegram_id = State()
+# ===============================
+# FSM holatlar
+# ===============================
+class AddBranchFSM(StatesGroup):
+    name = State()
+    branch_id = State()
+
+
+class DelBranchFSM(StatesGroup):
+    branch_id = State()
+
+
 
 
 # ================== START ==================
@@ -53,6 +65,64 @@ async def admin_start(message: types.Message):
         f"Siz Filial Admin panelidasiz.",
         reply_markup=get_admin_kb()
     )
+
+
+
+# ===============================
+# ➕ Filial qo‘shish
+# ===============================
+@router.message(F.text == "➕ Filial qo‘shish")
+async def add_branch_start(message: types.Message, state: FSMContext):
+    await state.set_state(AddBranchFSM.name)
+    await message.answer("🏢 Yangi filial nomini kiriting:")
+
+
+@router.message(AddBranchFSM.name)
+async def add_branch_name(message: types.Message, state: FSMContext):
+    await state.update_data(name=message.text)
+    await state.set_state(AddBranchFSM.branch_id)
+    await message.answer("🆔 Filial ID raqamini kiriting (faqat raqam):")
+
+
+@router.message(AddBranchFSM.branch_id)
+async def add_branch_finish(message: types.Message, state: FSMContext):
+    if not message.text.isdigit():
+        await message.answer("❗️Faqat raqam kiriting.")
+        return
+    data = await state.get_data()
+    database.execute(
+        "INSERT INTO branches (id, name) VALUES (:id, :name)",
+        {"id": int(message.text), "name": data["name"]}
+    )
+    await state.clear()
+    await message.answer(f"✅ Filial qo‘shildi: {data['name']} (ID: {message.text})", reply_markup=get_admin_kb())
+
+
+# ===============================
+# ❌ Filialni o‘chirish
+# ===============================
+@router.message(F.text == "❌ Filialni o‘chirish")
+async def del_branch_start(message: types.Message, state: FSMContext):
+    rows = database.fetchall("SELECT id, name FROM branches ORDER BY id ASC")
+    if not rows:
+        await message.answer("🏢 Hozircha filiallar mavjud emas.")
+        return
+    text = "🗑️ Qaysi filialni o‘chirmoqchisiz?\n\n"
+    for r in rows:
+        text += f"{r['id']}. {r['name']}\n"
+    await message.answer(text)
+    await state.set_state(DelBranchFSM.branch_id)
+
+
+@router.message(DelBranchFSM.branch_id)
+async def del_branch_finish(message: types.Message, state: FSMContext):
+    if not message.text.isdigit():
+        await message.answer("❗️Filial ID raqamini kiriting.")
+        return
+    database.execute("DELETE FROM branches WHERE id=:id", {"id": int(message.text)})
+    await state.clear()
+    await message.answer("✅ Filial muvaffaqiyatli o‘chirildi.", reply_markup=get_admin_kb())
+
 
 # ================== ISHCHILAR RO‘YXATI ==================
 @router.message(F.text == "👥 Ishchilar ro‘yxati")
