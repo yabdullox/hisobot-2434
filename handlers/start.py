@@ -15,7 +15,7 @@ async def cmd_start(message: types.Message):
     full_name = message.from_user.full_name
 
     # SuperAdmin ID dan tekshiruv
-    if str(tg_id) == str(SUPERADMIN_ID):
+    if int(tg_id) == int(SUPERADMIN_ID):
         # SuperAdmin DB’da yo‘q bo‘lsa — avtomatik qo‘shiladi
         user = fetchone("SELECT * FROM users WHERE telegram_id = :tid", {"tid": tg_id})
         if not user:
