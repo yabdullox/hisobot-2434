@@ -48,51 +48,81 @@ async def cmd_start(message: Message):
     await message.answer("👋 Salom, SuperAdmin!\nHISOBOT24 boshqaruv paneli ishga tayyor.", 
                          reply_markup=get_superadmin_kb())
 
-# ===============================
-# 📊 Bugungi hisobotlar
-# ===============================
+
+# ================== 📊 Bugungi hisobotlar ==================
 @router.message(F.text == "📊 Bugungi hisobotlar")
-async def today_reports(message: Message):
-    today = datetime.date.today()
-    reports = database.fetchall("""
-        SELECT r.id, u.full_name, r.branch_id, r.date, r.start_time, r.end_time, r.text
+async def today_reports(message: types.Message):
+    today = date.today()
+    reports = database.fetchall(
+        """
+        SELECT r.*, u.full_name, u.telegram_id, b.name AS branch_name
         FROM reports r
         LEFT JOIN users u ON r.user_id = u.telegram_id
+        LEFT JOIN branches b ON r.branch_id = b.id
         WHERE r.date = :today
-        ORDER BY r.start_time ASC
-    """, {"today": today})
-    
+        ORDER BY r.created_at DESC
+        """,
+        {"today": today}
+    )
+
     if not reports:
-        await message.answer("📅 Buguncha hisobotlar mavjud emas.")
+        await message.answer("📭 Bugun hali hisobot yuborilmagan.")
         return
 
-    text = "📊 Bugungi hisobotlar:\n\n"
+    text = "📅 <b>Bugungi hisobotlar:</b>\n\n"
     for r in reports:
-        text += (f"👤 {r['full_name'] or 'Nomaʼlum'}\n"
-                 f"🏢 Filial ID: {r['branch_id']}\n"
-                 f"🕘 {r['start_time'] or '-'} - {r['end_time'] or '-'}\n"
-                 f"🧾 Hisobot: {r['text'] or '—'}\n\n")
-    await message.answer(text)
+        full_name = r.get("full_name", "—")
+        branch = r.get("branch_name", "—")
+        user_id = r.get("telegram_id", "—")
+        report_text = r.get("text") or "—"
+        start_time = str(r.get("start_time")) if r.get("start_time") else "—"
+        end_time = str(r.get("end_time")) if r.get("end_time") else "—"
 
-# ===============================
-# 📈 Umumiy hisobotlar
-# ===============================
+        text += (
+            f"👷 <b>{full_name}</b>\n"
+            f"🏢 Filial: <b>{branch}</b>\n"
+            f"🆔 ID: <code>{user_id}</code>\n"
+            f"🕘 {start_time} - {end_time}\n"
+            f"🧾 Hisobot: <i>{report_text}</i>\n"
+            f"───────────────\n"
+        )
+
+    await message.answer(text, parse_mode="HTML")
+
+
+# ================== 📈 Umumiy hisobotlar ==================
 @router.message(F.text == "📈 Umumiy hisobotlar")
-async def all_reports(message: Message):
-    reports = database.fetchall("""
-        SELECT r.id, u.full_name, r.branch_id, r.date, r.text
+async def all_reports(message: types.Message):
+    reports = database.fetchall(
+        """
+        SELECT r.*, u.full_name, u.telegram_id, b.name AS branch_name
         FROM reports r
         LEFT JOIN users u ON r.user_id = u.telegram_id
-        ORDER BY r.date DESC LIMIT 20
-    """)
-    if not reports:
-        await message.answer("📊 Hali umumiy hisobotlar mavjud emas.")
-        return
-    text = "📈 So‘nggi 20 ta hisobot:\n\n"
-    for r in reports:
-        text += f"📅 {r['date']} — 👤 {r['full_name'] or 'Nomaʼlum'} — 🏢 {r['branch_id']}\n🧾 {r['text'] or '—'}\n\n"
-    await message.answer(text)
+        LEFT JOIN branches b ON r.branch_id = b.id
+        ORDER BY r.date DESC
+        LIMIT 20
+        """
+    )
 
+    if not reports:
+        await message.answer("📭 Hali hech qanday hisobot mavjud emas.")
+        return
+
+    text = "📊 <b>So‘nggi 20 ta hisobot:</b>\n\n"
+    for r in reports:
+        date_str = str(r.get("date"))
+        full_name = r.get("full_name", "—")
+        branch = r.get("branch_name", "—")
+        report_text = r.get("text") or "—"
+
+        text += (
+            f"📅 {date_str}\n"
+            f"👷 <b>{full_name}</b> | 🏢 <b>{branch}</b>\n"
+            f"🧾 {report_text}\n"
+            f"───────────────\n"
+        )
+
+    await message.answer(text, parse_mode="HTML")
 # ===============================
 # 🏢 Filiallar ro‘yxati
 # ===============================
