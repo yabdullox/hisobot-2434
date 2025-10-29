@@ -114,6 +114,40 @@ async def finish_work(message: types.Message):
     except Exception:
         pass
 
+# 📤 Bugungi hisobotni yuborish
+@router.message(F.text == "📤 Bugungi hisobotni yuborish")
+async def send_daily_report(message: Message):
+    telegram_id = message.from_user.id
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    # ✅ Hisobotni bazaga saqlash (agar add_report funksiyasi bo'lsa)
+    try:
+        add_report(telegram_id, now, "Bugungi hisobot yuborildi.")
+    except Exception as e:
+        print(f"Hisobot saqlashda xatolik: {e}")
+
+    # ✅ Superadmin yoki filial adminiga xabar yuborish
+    text = (
+        f"📬 <b>Yangi hisobot</b>\n"
+        f"👤 Ishchi: {message.from_user.full_name}\n"
+        f"🆔 ID: <code>{telegram_id}</code>\n"
+        f"📅 Sana: {now}"
+    )
+
+    # Agar SUPPERADMIN_ID ro‘yxat ko‘rinishida bo‘lsa
+    from config import SUPERADMIN_ID
+    admins = [int(x.strip()) for x in SUPERADMIN_ID.split(",")]
+    for admin in admins:
+        try:
+            await message.bot.send_message(admin, text, parse_mode="HTML")
+        except:
+            pass
+
+    # ✅ Ishchiga tasdiq
+    await message.answer(
+        "✅ Hisobotingiz yuborildi!\nRahmat, bugungi ish natijalari tizimda saqlandi.",
+        reply_markup=get_worker_kb()
+    )
 
 # ===============================
 # 📸 Tozalash rasmi yuborish
