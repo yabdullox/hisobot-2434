@@ -23,16 +23,16 @@ class ProblemFSM(StatesGroup):
     waiting_photo = State()
 
 
-# ===============================
-# /start
-# ===============================
-@router.message(F.text == "/start")
-async def start_worker(message: Message):
-    await message.answer(
-        "👷 <b>Salom, ishchi!</b>\nHisobot tizimiga xush kelibsiz.\nQuyidagi menyudan tanlang 👇",
-        parse_mode="HTML",
-        reply_markup=get_worker_kb()
-    )
+# # ===============================
+# # /start
+# # ===============================
+# @router.message(F.text == "/start")
+# async def start_worker(message: Message):
+#     await message.answer(
+#         "👷 <b>Salom, ishchi!</b>\nHisobot tizimiga xush kelibsiz.\nQuyidagi menyudan tanlang 👇",
+#         parse_mode="HTML",
+#         reply_markup=get_worker_kb()
+#     )
 
 
 # ===============================
