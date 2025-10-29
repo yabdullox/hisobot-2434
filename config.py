@@ -14,7 +14,9 @@ if not BOT_TOKEN:
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///hisobot24.db")
 
 # 👑 SuperAdmin ID
-SUPERADMIN_ID = int(os.getenv("SUPERADMIN_ID", "0"))
+# .env dan SUPERADMIN_ID ni o‘qish (bir nechta ID bo‘lishi mumkin)
+SUPERADMIN_ID = [s.strip() for s in os.getenv("SUPERADMIN_ID", "").split(",") if s.strip()]
+
 
 # 👨‍💼 Filial Admin ID (qo‘shimcha)
 ADMIN_ID = int(os.getenv("ADMIN_ID", "0"))
