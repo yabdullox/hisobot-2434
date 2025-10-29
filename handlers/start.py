@@ -9,6 +9,10 @@ from config import SUPERADMIN_ID
 router = Router()
 
 
+@router.message()
+async def ignore_unmatched_messages(message: types.Message):
+    """Hech bir handler mos kelmasa, jim turadi"""
+    return  # hech qanday javob yubormaydi
 # ===================== /start komandasi =====================
 @router.message(Command("start"))
 async def cmd_start(message: types.Message):
