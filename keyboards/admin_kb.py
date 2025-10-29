@@ -1,4 +1,5 @@
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 
 def get_admin_kb():
@@ -29,6 +30,19 @@ def get_admin_kb():
             KeyboardButton(text="⬅️ Menyuga qaytish")
         ]
     ]
+
+def get_admin_inline_actions(user_id: int):
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(text="✏️ Tahrirlash", callback_data=f"edit_worker:{user_id}"),
+            InlineKeyboardButton(text="🗑️ O‘chirish", callback_data=f"delete_worker:{user_id}")
+        ],
+        [
+            InlineKeyboardButton(text="💰 Bonus yozish", callback_data=f"bonus:{user_id}"),
+            InlineKeyboardButton(text="⚠️ Jarima yozish", callback_data=f"fine:{user_id}")
+        ]
+    ])
+
     return ReplyKeyboardMarkup(
         keyboard=keyboard,
         resize_keyboard=True,
