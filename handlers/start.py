@@ -97,11 +97,6 @@ from config import SUPERADMIN_ID
 
 router = Router()
 
-# ✅ fallback (jim turish)
-@router.message()
-async def ignore_unmatched_messages(message: types.Message):
-    """Hech bir handler mos kelmasa, jim turadi"""
-    return
 
 
 # ===================== /start komandasi =====================
