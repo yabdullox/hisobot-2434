@@ -132,7 +132,26 @@ def get_admin_branches(admin_id: int):
         WHERE ab.admin_id = :aid
     """, {"aid": admin_id})
 
+def init_db():
+    """Baza bilan bog‘lanishni test qiladi va kerakli jadvallarni yaratadi."""
+    try:
+        with engine.begin() as conn:
+            # Baza mavjudligini tekshiramiz
+            conn.execute(text("SELECT 1"))
 
+            # 🧱 Jadval: admin_branches
+            conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS admin_branches (
+                id SERIAL PRIMARY KEY,
+                admin_id BIGINT NOT NULL,
+                branch_id INTEGER NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+            """))
+
+        logging.info("✅ Database connection successful and tables checked.")
+    except Exception as e:
+        logging.error(f"❌ Database initialization failed: {e}")
 # ===============================
 # 🔹 Notes jadvalini yaratish (alohida chaqirish mumkin)
 # ===============================
