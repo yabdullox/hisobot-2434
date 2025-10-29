@@ -74,3 +74,14 @@ def execute_returning(query: str, params: dict = None):
     except Exception as e:
         logging.error(f"⚠️ execute_returning error: {e}")
         return None
+        
+def create_notes_table():
+    query = """
+    CREATE TABLE IF NOT EXISTS notes (
+        id BIGSERIAL PRIMARY KEY,
+        telegram_id BIGINT NOT NULL,
+        text TEXT NOT NULL,
+        created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+    );
+    """
+    execute(query)
