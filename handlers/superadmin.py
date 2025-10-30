@@ -190,6 +190,8 @@ async def cancel_action(callback: types.CallbackQuery):
     await callback.answer()
 
 
+
+
 # ===============================
 # 📅 BUGUNGI HISOBOTLAR
 # ===============================
@@ -203,6 +205,7 @@ async def show_today_reports(callback: types.CallbackQuery):
         SELECT 
             r.user_id,
             u.full_name,
+            u.branch_id,
             r.date,
             r.start_time,
             r.end_time,
@@ -220,18 +223,21 @@ async def show_today_reports(callback: types.CallbackQuery):
         await callback.answer()
         return
 
-    branch_name = reports[0]["branch_name"] if reports else f"ID: {branch_id}"
-    text = f"📋 <b>{branch_name}</b> — bugungi hisobotlar:\n\n"
+    branch_name = reports[0]["branch_name"] or f"ID: {branch_id}"
+    result = f"📅 <b>{branch_name}</b> — bugungi hisobotlar:\n\n"
 
     for r in reports:
-        text += (
-            f"👷 <b>{r['full_name'] or 'Noma’lum'}</b>\n"
-            f"🕘 {r['start_time'] or '-'} — {r['end_time'] or '-'}\n"
-            f"📅 {r['date']}\n"
-            f"🧾 {r['text']}\n\n"
+        result += (
+            f"👷‍♂️ <b>Ishchi:</b> {r['full_name'] or 'Noma’lum'}\n"
+            f"🏢 <b>Filial:</b> {r['branch_name']} (ID: {r['branch_id']})\n"
+            f"🆔 <b>Telegram ID:</b> <code>{r['user_id']}</code>\n\n"
+            f"📅 <b>Sana:</b> {r['date']}\n"
+            f"🕒 <b>Vaqt:</b> {r['start_time'] or '-'} — {r['end_time'] or '-'}\n\n"
+            f"🧾 <b>Hisobot:</b>\n{r['text']}\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━\n"
         )
 
-    await callback.message.answer(text, parse_mode="HTML")
+    await callback.message.answer(result, parse_mode="HTML")
     await callback.answer()
 
 
@@ -247,6 +253,7 @@ async def show_all_reports(callback: types.CallbackQuery):
         SELECT 
             r.user_id,
             u.full_name,
+            u.branch_id,
             r.date,
             r.start_time,
             r.end_time,
@@ -264,18 +271,21 @@ async def show_all_reports(callback: types.CallbackQuery):
         await callback.answer()
         return
 
-    branch_name = reports[0]["branch_name"] if reports else f"ID: {branch_id}"
-    text = f"📈 <b>{branch_name}</b> — umumiy hisobotlar:\n\n"
+    branch_name = reports[0]["branch_name"] or f"ID: {branch_id}"
+    result = f"📈 <b>{branch_name}</b> — umumiy hisobotlar:\n\n"
 
     for r in reports:
-        text += (
-            f"👷 <b>{r['full_name'] or 'Noma’lum'}</b>\n"
-            f"📅 {r['date']}\n"
-            f"🕘 {r['start_time'] or '-'} — {r['end_time'] or '-'}\n"
-            f"🧾 {r['text']}\n\n"
+        result += (
+            f"👷‍♂️ <b>Ishchi:</b> {r['full_name'] or 'Noma’lum'}\n"
+            f"🏢 <b>Filial:</b> {r['branch_name']} (ID: {r['branch_id']})\n"
+            f"🆔 <b>Telegram ID:</b> <code>{r['user_id']}</code>\n\n"
+            f"📅 <b>Sana:</b> {r['date']}\n"
+            f"🕒 <b>Vaqt:</b> {r['start_time'] or '-'} — {r['end_time'] or '-'}\n\n"
+            f"🧾 <b>Hisobot:</b>\n{r['text']}\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━\n"
         )
 
-    await callback.message.answer(text, parse_mode="HTML")
+    await callback.message.answer(result, parse_mode="HTML")
     await callback.answer()
 
 # ===============================
