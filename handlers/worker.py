@@ -358,6 +358,3 @@ async def save_note(message: types.Message):
         "INSERT INTO notes (telegram_id, text) VALUES (:u, :t)",
         {"u": user_id, "t": text}
     )
-
-    await message.answer("📝 Eslatma saqlandi (faqat sizga ko‘rinadi).")
-
