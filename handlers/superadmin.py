@@ -371,10 +371,18 @@ async def del_branch_finish(message: types.Message, state: FSMContext):
 @router.message(F.text == "👥 Adminlar ro‘yxati")
 async def admin_list(message: types.Message):
     admins = database.fetchall("""
-        SELECT id, full_name, telegram_id, branch_id
-        FROM users
-        WHERE role='admin'
-        ORDER BY id
+        SELECT 
+            u.id,
+            u.full_name,
+            u.telegram_id,
+            u.branch_id,
+            u.role,
+            u.created_at,
+            b.name AS branch_name
+        FROM users u
+        LEFT JOIN branches b ON b.id = u.branch_id
+        WHERE u.role = 'admin'
+        ORDER BY u.id ASC
     """)
 
     if not admins:
@@ -382,20 +390,32 @@ async def admin_list(message: types.Message):
         return
 
     text = "👥 <b>Adminlar ro‘yxati:</b>\n\n"
-    for idx, a in enumerate(admins, start=1):
+    count = 0
+    for a in admins:
+        count += 1
         name = a['full_name'] or "—"
         tg_id = a['telegram_id'] or "—"
-        branch = a.get('branch_id', '—')
+        branch = a['branch_name'] or f"ID: {a['branch_id'] or '—'}"
+        role = a['role'] or "—"
+        created = a['created_at'].strftime('%Y-%m-%d %H:%M') if a.get('created_at') else "—"
 
         text += (
-            f"<b>{idx}.</b> 👤 <b>{name}</b>\n"
-            f"🆔 <code>{tg_id}</code>\n"
-            f"🏢 Filial ID: <b>{branch}</b>\n"
-            f"━━━━━━━━━━━━━━━━━━━\n"
+            f"<b>{count}.</b> 👤 <b>{name}</b>\n"
+            f"🆔 <b>ID:</b> <code>{tg_id}</code>\n"
+            f"🏢 <b>Filial:</b> {branch}\n"
+            f"⚙️ <b>Roli:</b> {role}\n"
+            f"🕒 <b>Qo‘shilgan:</b> {created}\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━\n"
         )
 
-    await message.answer(text, parse_mode="HTML")
+        # Har 40 tadan keyin alohida xabar jo‘natamiz, Telegram limitdan oshmasin
+        if count % 40 == 0:
+            await message.answer(text, parse_mode="HTML")
+            text = ""
 
+    # Qolganlari
+    if text:
+        await message.answer(text, parse_mode="HTML")
 
 @router.message(F.text == "➕ Admin qo‘shish")
 async def add_admin_start(message: types.Message, state: FSMContext):
