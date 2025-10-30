@@ -472,7 +472,7 @@ async def del_admin_start(message: types.Message, state: FSMContext):
             b.name AS branch_name
         FROM users u
         LEFT JOIN branches b ON b.id = u.branch_id
-        WHERE u.role = 'admin'
+        WHERE LOWER(u.role) LIKE '%admin%' OR u.role IS NULL
         ORDER BY u.id ASC
     """)
 
@@ -480,9 +480,9 @@ async def del_admin_start(message: types.Message, state: FSMContext):
         await message.answer("👥 Adminlar hozircha mavjud emas.")
         return
 
-    # Matnni to‘plab ketamiz
     text = "🗑️ <b>O‘chirish uchun admin ID kiriting:</b>\n\n"
-    messages = []  # keyinchalik bo‘lib yuboramiz
+    messages = []
+
     for a in admins:
         name = a["full_name"] or "—"
         tg_id = a["telegram_id"] or "—"
@@ -495,7 +495,6 @@ async def del_admin_start(message: types.Message, state: FSMContext):
             "━━━━━━━━━━━━━━━━━━━━━━━\n"
         )
 
-        # Xabar uzunligini nazorat qilamiz (Telegram limiti ~4096 belgi)
         if len(text) + len(block) > 3500:
             messages.append(text)
             text = ""
@@ -505,12 +504,10 @@ async def del_admin_start(message: types.Message, state: FSMContext):
     if text:
         messages.append(text)
 
-    # Hammasini yuboramiz
     for msg_text in messages:
         await message.answer(msg_text, parse_mode="HTML")
 
     await state.set_state(DelAdminFSM.admin_id)
-
 
 # ===============================
 # Export menyulari (Excel/CSV)
