@@ -466,7 +466,7 @@ async def add_admin_finish(message: types.Message, state: FSMContext):
 # ===============================
 @router.message(F.text == "🗑️ Adminni o‘chirish")
 async def del_admin_start(message: types.Message, state: FSMContext):
-    # Adminlarni olish (rolidan qat’i nazar, barcha userlardan adminlarni)
+    # Barcha adminlarni tartib bilan olish (rolidan qat'i nazar)
     admins = database.fetchall("""
         SELECT 
             u.id,
@@ -486,11 +486,12 @@ async def del_admin_start(message: types.Message, state: FSMContext):
         await message.answer("👥 Adminlar hozircha mavjud emas.")
         return
 
-    text_header = "🗑️ <b>O‘chirish uchun admin ID kiriting:</b>\n\n"
+    text_header = "🗑️ <b>O'chirish uchun admin ID kiriting:</b>\n\n"
     buffer = text_header
     messages = []
     count = 0
-  for idx, a in enumerate(admins, start=1):
+
+    for idx, a in enumerate(admins, start=1):
         block = (
             f"<b>{idx}.</b> 👤 {a['full_name'] or '-'}\n"
             f"🆔 <b>ID:</b> <code>{a['id']}</code> | <b>Telegram:</b> <code>{a['telegram_id'] or '-'}</code>\n"
@@ -513,8 +514,11 @@ async def del_admin_start(message: types.Message, state: FSMContext):
     for part in messages:
         await message.answer(part, parse_mode="HTML")
 
-    await message.answer(f"✅ Jami <b>{count}</b> ta admin topildi.\n"
-                         f"✏️ O‘chirish uchun admin ID raqamini kiriting:", parse_mode="HTML")
+    await message.answer(
+        f"✅ Jami <b>{count}</b> ta admin topildi.\n"
+        f"✏️ O'chirish uchun admin ID raqamini kiriting:",
+        parse_mode="HTML"
+    )
 
     await state.set_state(DelAdminFSM.admin_id)
 
@@ -530,14 +534,18 @@ async def del_admin_finish(message: types.Message, state: FSMContext):
         await message.answer("❗️ Iltimos, faqat raqam kiriting (admin ID).")
         return
 
-    admin = database.fetchone("SELECT * FROM users WHERE id = :id AND LOWER(COALESCE(role,'')) LIKE '%admin%'", {"id": int(admin_id)})
+    admin = database.fetchone(
+        "SELECT * FROM users WHERE id = :id AND LOWER(COALESCE(role,'')) LIKE '%admin%'",
+        {"id": int(admin_id)}
+    )
+
     if not admin:
         await message.answer("⚠️ Bunday ID raqamli admin topilmadi.")
         return
 
     database.execute("DELETE FROM users WHERE id = :id", {"id": int(admin_id)})
     await state.clear()
-    await message.answer(f"✅ Admin (ID: <b>{admin_id}</b>) muvaffaqiyatli o‘chirildi.", parse_mode="HTML")
+    await message.answer(f"✅ Admin (ID: <b>{admin_id}</b>) muvaffaqiyatli o'chirildi.", parse_mode="HTML")
 
 # ===============================
 # Export menyulari (Excel/CSV)
