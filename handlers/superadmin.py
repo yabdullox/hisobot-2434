@@ -562,7 +562,8 @@ async def export_all_reports(callback: types.CallbackQuery):
         if "Sheet" in wb.sheetnames:
             wb.remove(wb["Sheet"])
 
-        filename = f"Umumiy_Hisobot_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx""
+        filename = f"Umumiy_Hisobot_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+
         path = os.path.join("/tmp", filename)
         wb.save(path)
 
