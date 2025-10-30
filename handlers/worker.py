@@ -159,13 +159,113 @@ async def back_to_main_worker_menu(message: types.Message):
     await message.answer("🏠 Asosiy ishchi menyuga qaytdingiz:", reply_markup=get_worker_kb())
 
 
-# ===============================
-# 💰 Bonus / Jarimalarim
-# ===============================
-@router.message(F.text == "💰 Bonus / Jarimalarim")
-async def show_bonus_menu(message: types.Message):
-    await message.answer("💰 Bonus yoki Jarimalar bo‘limini tanlang:", reply_markup=get_bonus_kb())
 
+# =====================================
+# 💰 BONUS / JARIMALAR BO‘LIMI
+# =====================================
+@router.message(F.text == "💰 Bonus / Jarimalarim")
+async def open_bonus_menu(message: types.Message):
+    """Ishchi bonus/jarimalar menyusini ochish."""
+    await message.answer(
+        "💰 Bonus yoki jarimalar bo‘limini tanlang:",
+        reply_markup=get_bonus_kb()
+    )
+
+
+# =====================================
+# 📅 BUGUNGI BONUS/JARIMALAR
+# =====================================
+@router.message(F.text == "📅 Bugungi")
+async def show_today_bonus(message: types.Message):
+    """Bugungi bonus va jarimalarni ko‘rsatish."""
+    uz_tz = pytz.timezone("Asia/Tashkent")
+    today = datetime.now(uz_tz).date()
+    user_id = message.from_user.id
+
+    bonuses = database.fetchall("""
+        SELECT amount, reason, created_at
+        FROM bonuses
+        WHERE user_id = :uid AND DATE(created_at) = :today
+        ORDER BY created_at DESC
+    """, {"uid": user_id, "today": today})
+
+    fines = database.fetchall("""
+        SELECT amount, reason, created_at
+        FROM fines
+        WHERE user_id = :uid AND DATE(created_at) = :today
+        ORDER BY created_at DESC
+    """, {"uid": user_id, "today": today})
+
+    text = f"📅 <b>Bugungi ({today}) bonus va jarimalar:</b>\n\n"
+
+    if not bonuses and not fines:
+        text += "📭 Bugun sizda bonus yoki jarima yozuvlari yo‘q."
+    else:
+        if bonuses:
+            text += "✅ <b>Bonuslar:</b>\n"
+            for b in bonuses:
+                text += f"➕ {b['amount']:,} so‘m — {b['reason']} ({b['created_at']})\n"
+            text += "\n"
+        if fines:
+            text += "❌ <b>Jarimalar:</b>\n"
+            for f in fines:
+                text += f"➖ {f['amount']:,} so‘m — {f['reason']} ({f['created_at']})\n"
+
+    await message.answer(text, parse_mode="HTML")
+
+
+# =====================================
+# 📋 UMUMIY BONUS/JARIMALAR
+# =====================================
+@router.message(F.text == "📋 Umumiy")
+async def show_all_bonus(message: types.Message):
+    """Umumiy bonus va jarimalarni ko‘rsatish."""
+    user_id = message.from_user.id
+
+    bonuses = database.fetchall("""
+        SELECT amount, reason, created_at
+        FROM bonuses
+        WHERE user_id = :uid
+        ORDER BY created_at DESC
+        LIMIT 30
+    """, {"uid": user_id})
+
+    fines = database.fetchall("""
+        SELECT amount, reason, created_at
+        FROM fines
+        WHERE user_id = :uid
+        ORDER BY created_at DESC
+        LIMIT 30
+    """, {"uid": user_id})
+
+    text = "📋 <b>Umumiy bonus va jarimalar (so‘nggi 30 ta yozuv):</b>\n\n"
+
+    if not bonuses and not fines:
+        text += "📭 Hozircha bonus yoki jarimalar mavjud emas."
+    else:
+        if bonuses:
+            text += "✅ <b>Bonuslar:</b>\n"
+            for b in bonuses:
+                text += f"➕ {b['amount']:,} so‘m — {b['reason']} ({b['created_at']})\n"
+            text += "\n"
+        if fines:
+            text += "❌ <b>Jarimalar:</b>\n"
+            for f in fines:
+                text += f"➖ {f['amount']:,} so‘m — {f['reason']} ({f['created_at']})\n"
+
+    await message.answer(text, parse_mode="HTML")
+
+
+# =====================================
+# ⬅️ ORQAGA — ASOSIY ISHCHI MENYUGA QAYTISH
+# =====================================
+@router.message(F.text == "⬅️ Orqaga")
+async def back_to_worker_menu(message: types.Message):
+    """Asosiy ishchi menyusiga qaytish."""
+    await message.answer(
+        "🏠 Asosiy menyuga qaytdingiz.",
+        reply_markup=get_worker_kb()
+    )
 
 # ===============================
 # 📓 Eslatma (faqat worker uchun)
