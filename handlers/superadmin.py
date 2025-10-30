@@ -403,7 +403,6 @@ async def del_admin_start(message: types.Message, state: FSMContext):
             f"🆔 <b>ID:</b> <code>{a['id']}</code>\n"
             f"💬 <b>Telegram ID:</b> <code>{a['telegram_id'] or '-'}</code>\n"
             f"🏢 <b>Filial:</b> {a['branch_name']}\n"
-            f"⚙️ <b>Rol:</b> {a['role']}\n"
             f"🕓 <b>Qo‘shilgan:</b> {a['created_at'] or '-'}\n"
             "━━━━━━━━━━━━━━━━━━━━━━━\n"
         )
