@@ -150,128 +150,126 @@ async def handle_admin_branch_confirm(callback: types.CallbackQuery):
 
     await callback.answer("✅ Admin muvaffaqiyatli biriktirildi.", show_alert=True)
     await callback.message.answer(f"✅ Admin ID {admin_id} ✅ Filial ID {branch_id} ga biriktirildi.")
-# ================== 📊 Hisobotlar menyusi ==================
+
+# ===============================
+# 📊 HISOBOT MENYUSI
+# ===============================
 @router.message(F.text.in_(["📊 Bugungi hisobotlar", "📈 Umumiy hisobotlar"]))
 async def show_report_type_menu(message: types.Message):
-    kb = InlineKeyboardMarkup(inline_keyboard=[
-        [
-            InlineKeyboardButton(text="📅 Bugungi hisobotlar", callback_data="menu:today"),
-            InlineKeyboardButton(text="📆 Umumiy hisobotlar", callback_data="menu:all")
-        ],
-        [InlineKeyboardButton(text="❌ Bekor qilish", callback_data="menu:cancel")]
-    ])
-
-    await message.answer("📋 Hisobot turini tanlang:", reply_markup=kb)
-
-
-# ================== Branch tanlash (callback)
-@router.callback_query(F.data.startswith("menu:"))
-async def choose_branch(callback: types.CallbackQuery):
-    action = callback.data.split(":")[1]
-    if action == "cancel":
-        await callback.message.answer("❌ Bekor qilindi.")
-        await callback.answer()
-        return
+    """Hisobot turi tanlash menyusi."""
+    action = "today" if message.text == "📊 Bugungi hisobotlar" else "all"
 
     branches = database.fetchall("SELECT id, name FROM branches ORDER BY id ASC")
     if not branches:
-        await callback.message.answer("⚠️ Hali hech bir filial mavjud emas.")
-        await callback.answer()
+        await message.answer("⚠️ Hozircha filiallar mavjud emas.")
         return
 
-    # Inline tugmalar ro'yxatini tuzamiz (har biri bitta qatorda)
-    kb_rows = [[InlineKeyboardButton(text=b["name"], callback_data=f"{action}_branch:{b['id']}")] for b in branches]
-    kb = InlineKeyboardMarkup(inline_keyboard=kb_rows + [[InlineKeyboardButton(text="⬅️ Bekor qilish", callback_data="menu:cancel")]])
-
-    if action == "today":
-        await callback.message.answer("📅 Qaysi filialning bugungi hisobotlarini ko‘rmoqchisiz?", reply_markup=kb)
-    else:
-        await callback.message.answer("📆 Qaysi filialning umumiy hisobotlarini ko‘rmoqchisiz?", reply_markup=kb)
-
-    await callback.answer()
-
-
-
-# ===============================
-# 📊 HISOBOTLAR BO‘LIMI
-# ===============================
-@router.message(F.text == "📊 Bugungi hisobotlar")
-async def show_today_reports(message: types.Message):
-    """Bugungi hisobotlarni filiallar bo‘yicha chiqarish."""
-    branches = database.fetchall("SELECT id, name FROM branches ORDER BY id")
-    if not branches:
-        await message.answer("❌ Hozircha filiallar yo‘q.")
-        return
-
-    keyboard = [
-        [types.KeyboardButton(text=branch['name'])] for branch in branches
+    buttons = [
+        [types.KeyboardButton(text=b["name"])] for b in branches
     ]
-    keyboard.append([types.KeyboardButton(text="❌ Bekor qilish")])
+    buttons.append([types.KeyboardButton(text="❌ Bekor qilish")])
 
     await message.answer(
-        "📅 Qaysi filialning bugungi hisobotlarini ko‘rmoqchisiz?",
+        "📅 Qaysi filialning hisobotlarini ko‘rmoqchisiz?",
         reply_markup=types.ReplyKeyboardMarkup(
-            keyboard=keyboard,
-            resize_keyboard=True
+            keyboard=buttons,
+            resize_keyboard=True,
+            input_field_placeholder="Filialni tanlang 👇"
         )
     )
 
-
-@router.message(F.text.in_(["❌ Bekor qilish", "❌ Bekor"]))
-async def cancel_reports(message: types.Message):
-    """Bekor tugmasi uchun handler."""
-    from keyboards.superadmin_kb import get_superadmin_kb
-    await message.answer("❌ Amal bekor qilindi.", reply_markup=get_superadmin_kb())
+    # Holatni vaqtincha saqlab qo‘yamiz
+    message.bot['report_mode'] = action
 
 
+# ===============================
+# ❌ BEKOR QILISH
+# ===============================
+@router.message(F.text == "❌ Bekor qilish")
+async def cancel_action(message: types.Message):
+    """Bekor qilish tugmasi bosilganda menyuga qaytadi."""
+    await message.answer("❌ Bekor qilindi.", reply_markup=get_superadmin_kb())
+
+
+# ===============================
+# 🗓️ HISOBOTLARNI KO‘RISH
+# ===============================
 @router.message()
 async def show_reports_for_branch(message: types.Message):
-    """Tanlangan filial uchun bugungi hisobotlarni chiqaradi."""
+    """Tanlangan filial uchun bugungi yoki umumiy hisobotlarni ko‘rsatadi."""
     branch_name = message.text.strip()
 
-    # 🔹 Filialni topamiz
-    branch = database.fetchone(
-        "SELECT id FROM branches WHERE name=:n",
-        {"n": branch_name}
-    )
+    # Faqat filial nomi bilan ishlaymiz
+    branch = database.fetchone("SELECT id FROM branches WHERE name=:n", {"n": branch_name})
     if not branch:
         return  # boshqa tugmalar uchun jim turadi
 
+    branch_id = branch["id"]
+    mode = message.bot.get('report_mode', 'today')
     today = date.today()
 
-    # 🔹 Bugungi hisobotlarni olish (eng muhim o‘zgarishlar shu joyda)
-    reports = database.fetchall("""
-        SELECT 
-            r.user_id,
-            u.full_name,
-            r.date,
-            r.start_time,
-            r.end_time,
-            r.text
-        FROM reports r
-        LEFT JOIN users u ON u.telegram_id = r.user_id
-        WHERE DATE(r.date) = :today
-          AND r.branch_id = :bid
-          AND r.text IS NOT NULL
-        ORDER BY r.date DESC, r.start_time
-    """, {"today": today, "bid": branch['id']})
+    if mode == "today":
+        query = """
+            SELECT 
+                r.user_id,
+                u.full_name,
+                r.date,
+                r.start_time,
+                r.end_time,
+                r.text
+            FROM reports r
+            LEFT JOIN users u ON u.telegram_id = r.user_id
+            WHERE DATE(r.date) = :today
+              AND r.branch_id = :bid
+              AND r.text IS NOT NULL
+            ORDER BY r.date DESC, r.start_time
+        """
+        params = {"today": today, "bid": branch_id}
+        title = f"📅 {branch_name} — Bugungi hisobotlar"
+    else:
+        query = """
+            SELECT 
+                r.user_id,
+                u.full_name,
+                r.date,
+                r.start_time,
+                r.end_time,
+                r.text
+            FROM reports r
+            LEFT JOIN users u ON u.telegram_id = r.user_id
+            WHERE r.branch_id = :bid
+              AND r.text IS NOT NULL
+            ORDER BY r.date DESC, r.start_time
+        """
+        params = {"bid": branch_id}
+        title = f"📈 {branch_name} — Umumiy hisobotlar"
+
+    reports = database.fetchall(query, params)
 
     if not reports:
-        await message.answer("📭 Bu filialda bugun hisobot yo‘q.")
+        await message.answer("📭 Bu filialda hisobot topilmadi.")
         return
 
-    # 🔹 Chiroyli formatda chiqaramiz
-    text = f"📋 <b>{branch_name}</b> filiali bugungi hisobotlari:\n\n"
+    # 📋 Chiroyli formatda chiqaramiz
+    result_text = f"{title}\n\n"
     for r in reports:
-        text += (
-            f"👷 <b>{r['full_name']}</b>\n"
-            f"🕘 <i>{r['start_time'] or '-'} - {r['end_time'] or '-'}</i>\n"
-            f"📅 <code>{r['date']}</code>\n"
+        result_text += (
+            f"👷 <b>{r['full_name'] or 'Noma’lum'}</b>\n"
+            f"📅 {r['date']}\n"
+            f"🕘 {r['start_time'] or '-'} — {r['end_time'] or '-'}\n"
             f"🧾 {r['text']}\n\n"
         )
 
-    await message.answer(text, parse_mode="HTML")
+    # Juda uzun bo‘lsa, bo‘lib yuboramiz
+    if len(result_text) > 4000:
+        parts = [result_text[i:i+4000] for i in range(0, len(result_text), 4000)]
+        for part in parts:
+            await message.answer(part, parse_mode="HTML")
+    else:
+        await message.answer(result_text, parse_mode="HTML")
 
+    # 🔙 Hisobotdan keyin menyuga qaytish
+    await message.answer("⬅️ Asosiy menyu", reply_markup=get_superadmin_kb())
 
 
 
