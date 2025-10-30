@@ -461,9 +461,12 @@ async def add_admin_finish(message: types.Message, state: FSMContext):
     await state.clear()
     await message.answer("✅ Admin qo‘shildi.")
 
+# ===============================
+# 🗑️ ADMINNI O‘CHIRISH
+# ===============================
 @router.message(F.text == "🗑️ Adminni o‘chirish")
 async def del_admin_start(message: types.Message, state: FSMContext):
-    # Barcha adminlarni tartib bilan olish (rolidan qat'i nazar)
+    # Adminlarni olish (rolidan qat’i nazar, barcha userlardan adminlarni)
     admins = database.fetchall("""
         SELECT 
             u.id,
@@ -471,7 +474,8 @@ async def del_admin_start(message: types.Message, state: FSMContext):
             u.telegram_id,
             u.branch_id,
             b.name AS branch_name,
-            u.created_at
+            COALESCE(u.role, '') AS role,
+            TO_CHAR(u.created_at, 'YYYY-MM-DD HH24:MI') AS created_at
         FROM users u
         LEFT JOIN branches b ON b.id = u.branch_id
         WHERE LOWER(COALESCE(u.role, '')) LIKE '%admin%'
@@ -483,41 +487,58 @@ async def del_admin_start(message: types.Message, state: FSMContext):
         return
 
     text_header = "🗑️ <b>O‘chirish uchun admin ID kiriting:</b>\n\n"
-    full_message = text_header
-    all_messages = []
+    buffer = text_header
+    messages = []
     count = 0
 
     for idx, a in enumerate(admins, start=1):
-        name = a["full_name"] or "—"
-        tg_id = a["telegram_id"] or "—"
-        branch = a["branch_name"] or f"Filial ID: {a['branch_id'] or '—'}"
-        created_at = a["created_at"] or "—"
-
         block = (
-            f"<b>{idx}.</b> 👤 {name}\n"
-            f"🆔 <b>ID:</b> <code>{a['id']}</code> | <b>Telegram:</b> <code>{tg_id}</code>\n"
-            f"🏢 <b>Filial:</b> {branch}\n"
-            f"🕓 <b>Qo‘shilgan:</b> {created_at}\n"
+            f"<b>{idx}.</b> 👤 {a['full_name'] or '—'}\n"
+            f"🆔 <b>ID:</b> <code>{a['id']}</code> | <b>Telegram:</b> <code>{a['telegram_id'] or '—'}</code>\n"
+            f"🏢 <b>Filial:</b> {a['branch_name'] or f'Filial ID: {a['branch_id'] or '—'}'}\n"
+            f"⚙️ <b>Rol:</b> {a['role'] or 'admin'}\n"
+            f"🕓 <b>Qo‘shilgan:</b> {a['created_at'] or '—'}\n"
             "━━━━━━━━━━━━━━━━━━━━━━━\n"
         )
 
-        # Telegram xabar limiti (4096 belgidan oshmasin)
-        if len(full_message) + len(block) > 3500:
-            all_messages.append(full_message)
-            full_message = ""
+        if len(buffer) + len(block) > 3500:
+            messages.append(buffer)
+            buffer = ""
 
-        full_message += block
+        buffer += block
         count += 1
 
-    if full_message:
-        all_messages.append(full_message)
+    if buffer:
+        messages.append(buffer)
 
-    # Hamma xabarlarni ketma-ket yuboramiz
-    for msg_text in all_messages:
-        await message.answer(msg_text, parse_mode="HTML")
+    for part in messages:
+        await message.answer(part, parse_mode="HTML")
 
-    await message.answer(f"✅ Jami {count} ta admin topildi.", parse_mode="HTML")
+    await message.answer(f"✅ Jami <b>{count}</b> ta admin topildi.\n"
+                         f"✏️ O‘chirish uchun admin ID raqamini kiriting:", parse_mode="HTML")
+
     await state.set_state(DelAdminFSM.admin_id)
+
+
+# ===============================
+# 🔧 ADMINNI O‘CHIRISH — ID KIRITILGANDAN KEYIN
+# ===============================
+@router.message(DelAdminFSM.admin_id)
+async def del_admin_finish(message: types.Message, state: FSMContext):
+    admin_id = message.text.strip()
+
+    if not admin_id.isdigit():
+        await message.answer("❗️ Iltimos, faqat raqam kiriting (admin ID).")
+        return
+
+    admin = database.fetchone("SELECT * FROM users WHERE id = :id AND LOWER(COALESCE(role,'')) LIKE '%admin%'", {"id": int(admin_id)})
+    if not admin:
+        await message.answer("⚠️ Bunday ID raqamli admin topilmadi.")
+        return
+
+    database.execute("DELETE FROM users WHERE id = :id", {"id": int(admin_id)})
+    await state.clear()
+    await message.answer(f"✅ Admin (ID: <b>{admin_id}</b>) muvaffaqiyatli o‘chirildi.", parse_mode="HTML")
 
 # ===============================
 # Export menyulari (Excel/CSV)
