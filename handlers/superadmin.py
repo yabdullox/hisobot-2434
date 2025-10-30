@@ -470,7 +470,6 @@ async def del_admin_finish(message: types.Message, state: FSMContext):
 # ===============================
 # Export menyulari (Excel/CSV)
 # ===============================
-
 # =====================================
 # 📤 Export menyusi
 # =====================================
@@ -559,9 +558,12 @@ async def export_all_reports(callback: types.CallbackQuery):
                         max_len = max(max_len, len(str(cell.value)))
                 ws.column_dimensions[col_letter].width = max_len + 4
 
+        # Default bo'sh "Sheet"ni o'chiramiz
         if "Sheet" in wb.sheetnames:
             wb.remove(wb["Sheet"])
 
+        # ⚙️ Fayl nomini yaratamiz (datetime moduli bilan to‘g‘ri ishlaydi)
+        from datetime import datetime
         filename = f"Umumiy_Hisobot_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
 
         path = os.path.join("/tmp", filename)
@@ -602,6 +604,7 @@ async def choose_branch_today(callback: types.CallbackQuery):
 @router.callback_query(F.data.startswith("export_branch:"))
 async def export_today_branch(callback: types.CallbackQuery):
     branch_id = int(callback.data.split(":")[1])
+    from datetime import date
     today = date.today()
 
     reports = database.fetchall("""
@@ -627,7 +630,6 @@ async def export_today_branch(callback: types.CallbackQuery):
     ws = wb.active
     ws.title = reports[0]["branch_name"]
 
-    # Headerlar
     headers = ["👷 Ishchi", "📅 Sana", "🕘 Boshlanish", "🏁 Tugash", "🧾 Hisobot matni"]
     ws.append(headers)
 
@@ -645,7 +647,6 @@ async def export_today_branch(callback: types.CallbackQuery):
         cell.alignment = align_center
         cell.border = border
 
-    # Ma'lumotlar
     for r in reports:
         ws.append([
             r["worker_name"],
@@ -655,7 +656,6 @@ async def export_today_branch(callback: types.CallbackQuery):
             r["report_text"] or "",
         ])
 
-    # Ustun kengligi
     for col in ws.columns:
         max_len = 0
         col_letter = col[0].column_letter
@@ -664,7 +664,8 @@ async def export_today_branch(callback: types.CallbackQuery):
                 max_len = max(max_len, len(str(cell.value)))
         ws.column_dimensions[col_letter].width = max_len + 4
 
-    filename = f"{reports[0]['branch_name']}_Bugungi_{today}.xlsx"
+    from datetime import datetime
+    filename = f"{reports[0]['branch_name']}_Bugungi_{datetime.now().strftime('%Y%m%d')}.xlsx"
     path = os.path.join("/tmp", filename)
     wb.save(path)
 
@@ -682,7 +683,6 @@ async def export_today_branch(callback: types.CallbackQuery):
 @router.callback_query(F.data == "export:cancel")
 async def cancel_export(callback: types.CallbackQuery):
     await callback.message.answer("❌ Bekor qilindi.")
-
 # ===============================
 # Bonus/Jarimalar ro'yxati
 # ===============================
