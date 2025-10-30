@@ -368,46 +368,19 @@ async def del_branch_finish(message: types.Message, state: FSMContext):
 #     for a in admins:
 #         text += f"{a['id']}. {a['full_name']} — 🆔 {a['telegram_id']} — Filial: {a.get('branch_id','—')}\n"
 #     await message.answer(text)
+
+# ===============================
+# 👥 ADMINLAR RO‘YXATI
+# ===============================
 @router.message(F.text == "👥 Adminlar ro‘yxati")
-async def admin_list(message: types.Message):
-    admins = database.fetchall("""
-        SELECT id, full_name, telegram_id, branch_id
-        FROM users
-        WHERE role='admin'
-        ORDER BY id
-    """)
-
-    if not admins:
-        await message.answer("👥 Hozircha adminlar mavjud emas.")
-        return
-
-    text = "👥 <b>Adminlar ro‘yxati:</b>\n\n"
-    for idx, a in enumerate(admins, start=1):
-        name = a['full_name'] or "—"
-        tg_id = a['telegram_id'] or "—"
-        branch = a.get('branch_id', '—')
-
-        text += (
-            f"<b>{idx}.</b> 👤 <b>{name}</b>\n"
-            f"🆔 <code>{tg_id}</code>\n"
-            f"🏢 Filial ID: <b>{branch}</b>\n"
-            f"━━━━━━━━━━━━━━━━━━━\n"
-        )
-
-    await message.answer(text, parse_mode="HTML")
-# ===============================
-# 🗑️ ADMINNI O‘CHIRISH (to‘liq ishlaydigan versiya)
-# ===============================
-@router.message(F.text == "🗑️ Adminni o‘chirish")
-async def del_admin_start(message: types.Message, state: FSMContext):
-    """Barcha adminlarni chiroyli ro‘yxatda chiqaradi (limit cheklanmagan)."""
+async def show_admin_list(message: types.Message):
+    """Barcha adminlarni chiroyli ro‘yxatda ko‘rsatadi"""
     admins = database.fetchall("""
         SELECT 
             u.id,
             u.full_name,
             u.telegram_id,
-            u.branch_id,
-            b.name AS branch_name,
+            COALESCE(b.name, CONCAT('Filial ID: ', u.branch_id)) AS branch_name,
             TO_CHAR(u.created_at, 'YYYY-MM-DD HH24:MI') AS created_at
         FROM users u
         LEFT JOIN branches b ON b.id = u.branch_id
@@ -419,60 +392,163 @@ async def del_admin_start(message: types.Message, state: FSMContext):
         await message.answer("👥 Adminlar hozircha mavjud emas.")
         return
 
-    text_header = "👥 <b>Adminlar ro‘yxati:</b>\n\n"
-    full_message = text_header
+    header = "👥 <b>Adminlar ro‘yxati:</b>\n\n"
+    text = header
     count = 0
+    all_texts = []
 
-    # Har 3500 belgida yangi xabar yuborish
     for idx, a in enumerate(admins, start=1):
-        branch_info = a["branch_name"] or f"Filial ID: {a['branch_id'] or '-'}"
         block = (
             f"<b>{idx}.</b> 👤 {a['full_name'] or '-'}\n"
             f"🆔 <b>ID:</b> <code>{a['id']}</code>\n"
             f"💬 <b>Telegram ID:</b> <code>{a['telegram_id'] or '-'}</code>\n"
-            f"🏢 <b>Filial:</b> {branch_info}\n"
+            f"🏢 <b>Filial:</b> {a['branch_name']}\n"
             f"🕓 <b>Qo‘shilgan:</b> {a['created_at'] or '-'}\n"
             "━━━━━━━━━━━━━━━━━━━━━━━\n"
         )
 
-        # Agar xabar uzun bo‘lsa, yuborib tozalaymiz
-        if len(full_message) + len(block) > 3500:
-            await message.answer(full_message, parse_mode="HTML")
-            full_message = ""
+        if len(text) + len(block) > 3500:
+            all_texts.append(text)
+            text = ""
 
-        full_message += block
+        text += block
         count += 1
 
-    # Oxirgi xabarni yuboramiz
-    if full_message:
-        await message.answer(full_message, parse_mode="HTML")
+    if text:
+        all_texts.append(text)
 
-    # Yakuniy hisobot
+    for part in all_texts:
+        await message.answer(part, parse_mode="HTML")
+
+    await message.answer(f"✅ Jami <b>{count}</b> ta admin topildi.", parse_mode="HTML")
+
+
+# ===============================
+# ➕ ADMIN QO‘SHISH
+# ===============================
+@router.message(F.text == "➕ Admin qo‘shish")
+async def add_admin_start(message: types.Message, state: FSMContext):
+    await state.set_state(AddAdminFSM.name)
+    await message.answer("👤 Admin to‘liq ismini kiriting:")
+
+
+@router.message(AddAdminFSM.name)
+async def add_admin_name(message: types.Message, state: FSMContext):
+    await state.update_data(name=message.text)
+    await state.set_state(AddAdminFSM.phone)
+    await message.answer("📞 Admin telefon raqamini kiriting:")
+
+
+@router.message(AddAdminFSM.phone)
+async def add_admin_phone(message: types.Message, state: FSMContext):
+    await state.update_data(phone=message.text)
+    await state.set_state(AddAdminFSM.tg_id)
+    await message.answer("🆔 Admin Telegram ID’sini kiriting:")
+
+
+@router.message(AddAdminFSM.tg_id)
+async def add_admin_tgid(message: types.Message, state: FSMContext):
+    if not message.text.isdigit():
+        await message.answer("❗️ Telegram ID raqam bo‘lishi kerak.")
+        return
+    await state.update_data(tg_id=int(message.text))
+    await state.set_state(AddAdminFSM.branch_id)
+    await message.answer("🏢 Admin qaysi filialga biriktiriladi? Filial ID kiriting:")
+
+
+@router.message(AddAdminFSM.branch_id)
+async def add_admin_finish(message: types.Message, state: FSMContext):
+    if not message.text.isdigit():
+        await message.answer("❗️ Filial ID faqat raqam bo‘lishi kerak.")
+        return
+
+    data = await state.get_data()
+    full_name = f"{data['name']} ({data['phone']})"
+
+    # Admin avvaldan mavjudmi — tekshirish
+    exists = database.fetchone("SELECT id FROM users WHERE telegram_id = :tg_id", {"tg_id": data["tg_id"]})
+    if exists:
+        await message.answer("⚠️ Bu Telegram ID allaqachon tizimda mavjud.")
+        await state.clear()
+        return
+
+    database.execute("""
+        INSERT INTO users (telegram_id, full_name, role, branch_id, created_at)
+        VALUES (:tg, :fn, 'admin', :br, :dt)
+    """, {
+        "tg": data["tg_id"],
+        "fn": full_name,
+        "br": int(message.text),
+        "dt": datetime.now()
+    })
+
+    await state.clear()
+    await message.answer(f"✅ Admin qo‘shildi:\n👤 {full_name}\n🏢 Filial ID: {message.text}")
+
+
+# ===============================
+# 🗑️ ADMINNI O‘CHIRISH
+# ===============================
+@router.message(F.text == "🗑️ Adminni o‘chirish")
+async def del_admin_start(message: types.Message, state: FSMContext):
+    admins = database.fetchall("""
+        SELECT 
+            u.id,
+            u.full_name,
+            u.telegram_id,
+            COALESCE(b.name, CONCAT('Filial ID: ', u.branch_id)) AS branch_name,
+            TO_CHAR(u.created_at, 'YYYY-MM-DD HH24:MI') AS created_at
+        FROM users u
+        LEFT JOIN branches b ON b.id = u.branch_id
+        WHERE LOWER(COALESCE(u.role, '')) LIKE '%admin%'
+        ORDER BY u.id ASC
+    """)
+
+    if not admins:
+        await message.answer("👥 Adminlar hozircha mavjud emas.")
+        return
+
+    text_header = "🗑️ <b>Adminlar ro‘yxati (o‘chirish uchun):</b>\n\n"
+    text = text_header
+    all_texts = []
+
+    for idx, a in enumerate(admins, start=1):
+        block = (
+            f"<b>{idx}.</b> 👤 {a['full_name'] or '-'}\n"
+            f"🆔 <b>ID:</b> <code>{a['id']}</code>\n"
+            f"💬 <b>Telegram ID:</b> <code>{a['telegram_id'] or '-'}</code>\n"
+            f"🏢 <b>Filial:</b> {a['branch_name']}\n"
+            f"🕓 <b>Qo‘shilgan:</b> {a['created_at'] or '-'}\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━\n"
+        )
+
+        if len(text) + len(block) > 3500:
+            all_texts.append(text)
+            text = ""
+
+        text += block
+
+    if text:
+        all_texts.append(text)
+
+    for part in all_texts:
+        await message.answer(part, parse_mode="HTML")
+
     await message.answer(
-        f"✅ <b>Jami {count} ta admin topildi.</b>\n"
         "✏️ O‘chirish uchun admin ID raqamini kiriting:",
         parse_mode="HTML"
     )
-
     await state.set_state(DelAdminFSM.admin_id)
 
 
-# ===============================
-# 🔧 ADMINNI O‘CHIRISH — ID KIRITILGANDAN KEYIN
-# ===============================
 @router.message(DelAdminFSM.admin_id)
 async def del_admin_finish(message: types.Message, state: FSMContext):
     admin_id = message.text.strip()
-
     if not admin_id.isdigit():
-        await message.answer("❗️ Iltimos, faqat raqam kiriting (admin ID).")
+        await message.answer("❗️ Faqat raqam kiriting (admin ID).")
         return
 
-    admin = database.fetchone(
-        "SELECT * FROM users WHERE id = :id AND LOWER(COALESCE(role,'')) LIKE '%admin%'",
-        {"id": int(admin_id)}
-    )
-
+    admin = database.fetchone("SELECT * FROM users WHERE id = :id AND LOWER(role) LIKE '%admin%'", {"id": int(admin_id)})
     if not admin:
         await message.answer("⚠️ Bunday ID raqamli admin topilmadi.")
         return
@@ -480,7 +556,6 @@ async def del_admin_finish(message: types.Message, state: FSMContext):
     database.execute("DELETE FROM users WHERE id = :id", {"id": int(admin_id)})
     await state.clear()
     await message.answer(f"✅ Admin (ID: <b>{admin_id}</b>) muvaffaqiyatli o‘chirildi.", parse_mode="HTML")
-
 
 # ===============================
 # Export menyulari (Excel/CSV)
