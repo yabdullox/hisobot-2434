@@ -151,7 +151,8 @@ async def handle_admin_branch_confirm(callback: types.CallbackQuery):
     await callback.answer("✅ Admin muvaffaqiyatli biriktirildi.", show_alert=True)
     await callback.message.answer(f"✅ Admin ID {admin_id} ✅ Filial ID {branch_id} ga biriktirildi.")
 
-## ===============================
+
+# ===============================
 # 📊 HISOBOTLAR BO‘LIMI
 # ===============================
 @router.message(F.text.in_(["📊 Bugungi hisobotlar", "📈 Umumiy hisobotlar"]))
@@ -276,7 +277,6 @@ async def show_all_reports(callback: types.CallbackQuery):
 
     await callback.message.answer(text, parse_mode="HTML")
     await callback.answer()
-
 
 # ===============================
 # Filiallar ro'yxati, qo'shish, o'chirish
