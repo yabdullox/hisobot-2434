@@ -197,14 +197,21 @@ async def cancel_action(callback: types.CallbackQuery):
 
 
 # ===============================
-# 📅 BUGUNGI HISOBOTLAR
+# 📅 BUGUNGI HISOBOTLAR — YANGI VERSIYA
 # ===============================
+from datetime import datetime
+import pytz
+
 @router.callback_query(F.data.startswith("today_branch:"))
 async def show_today_reports(callback: types.CallbackQuery):
-    """Bugungi filial hisobotlarini ko‘rsatadi."""
+    """Bugungi filial hisobotlarini ko‘rsatadi (O‘zbekiston vaqti bilan)."""
     branch_id = int(callback.data.split(":")[1])
-    today = date.today()
 
+    # 🕓 O‘zbekiston vaqt zonasi bo‘yicha hozirgi sana
+    uz_tz = pytz.timezone("Asia/Tashkent")
+    today = datetime.now(uz_tz).date()
+
+    # 🧾 Ma'lumotlarni olish
     reports = database.fetchall("""
         SELECT 
             r.user_id,
@@ -222,14 +229,20 @@ async def show_today_reports(callback: types.CallbackQuery):
         ORDER BY r.date DESC, r.start_time
     """, {"today": today, "bid": branch_id})
 
+    # ⚠️ Agar hisobot topilmasa
     if not reports:
-        await callback.message.answer("📭 Bu filialda bugun hisobot yo‘q.")
+        await callback.message.answer(
+            f"📭 <b>Bugun ({today}) bu filialda hisobot topilmadi.</b>",
+            parse_mode="HTML"
+        )
         await callback.answer()
         return
 
+    # 🏢 Filial nomini olish
     branch_name = reports[0]["branch_name"] or f"ID: {branch_id}"
-    result = f"📅 <b>{branch_name}</b> — bugungi hisobotlar:\n\n"
+    result = f"📅 <b>{branch_name}</b> — bugungi hisobotlar ({today}):\n\n"
 
+    # 🧱 Har bir hisobotni qo‘shish
     for r in reports:
         result += (
             f"👷‍♂️ <b>Ishchi:</b> {r['full_name'] or 'Noma’lum'}\n"
@@ -241,6 +254,7 @@ async def show_today_reports(callback: types.CallbackQuery):
             "━━━━━━━━━━━━━━━━━━━━━━━\n"
         )
 
+    # 📨 Natijani yuborish
     await callback.message.answer(result, parse_mode="HTML")
     await callback.answer()
 
