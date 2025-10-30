@@ -24,8 +24,8 @@ dp = Dispatcher()
 dp.include_router(start_h.router)
 dp.include_router(superadmin_h.router)
 dp.include_router(admin_h.router)
-dp.include_router(worker_h.router)
 dp.include_router(admin_branch_link_h.router)
+dp.include_router(worker_h.router)
 
 
 async def check_conflict():
