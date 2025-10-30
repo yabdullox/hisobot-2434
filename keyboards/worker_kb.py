@@ -15,6 +15,9 @@ def get_worker_kb():
             KeyboardButton(text="🧾 Bugungi hisobotni yuborish")
         ],
         [
+            KeyboardButton(text="🧾 Mahsulotlar")
+        ],
+        [
             KeyboardButton(text="💰 Bonus / Jarimalarim"),
             KeyboardButton(text="📓 Eslatmalarim")
         ]
@@ -42,6 +45,25 @@ def get_bonus_kb():
         keyboard=kb,
         resize_keyboard=True,
         input_field_placeholder="Bonus / Jarima hisobotini tanlang 👇",
+        one_time_keyboard=False
+    )
+
+
+# 🧾 Mahsulotlar bo‘limi uchun keyboard
+def get_mahsulot_kb():
+    kb = [
+        [
+            KeyboardButton(text="➕ Mahsulot qo‘shish"),
+            KeyboardButton(text="➖ Mahsulot o‘chirish")
+        ],
+        [
+            KeyboardButton(text="⬅️ Menyuga qaytish")
+        ]
+    ]
+    return ReplyKeyboardMarkup(
+        keyboard=kb,
+        resize_keyboard=True,
+        input_field_placeholder="Mahsulotlar bo‘limidan tanlang 👇",
         one_time_keyboard=False
     )
 
