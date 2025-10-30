@@ -19,7 +19,7 @@ from openpyxl import Workbook
 from keyboards.superadmin_kb import get_superadmin_kb
 from config import SUPERADMIN_ID
 from utils.excel_export import export_reports_to_excel
-
+from datetime import datetime, date
 import database
 import os
 import datetime
@@ -562,7 +562,7 @@ async def export_all_reports(callback: types.CallbackQuery):
         if "Sheet" in wb.sheetnames:
             wb.remove(wb["Sheet"])
 
-        filename = f"Umumiy_Hisobot_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+        filename = f"Umumiy_Hisobot_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx""
         path = os.path.join("/tmp", filename)
         wb.save(path)
 
