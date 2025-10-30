@@ -463,16 +463,18 @@ async def add_admin_finish(message: types.Message, state: FSMContext):
 
 @router.message(F.text == "🗑️ Adminni o‘chirish")
 async def del_admin_start(message: types.Message, state: FSMContext):
+    # Barcha adminlarni tartib bilan olish (rolidan qat'i nazar)
     admins = database.fetchall("""
         SELECT 
             u.id,
             u.full_name,
             u.telegram_id,
             u.branch_id,
-            b.name AS branch_name
+            b.name AS branch_name,
+            u.created_at
         FROM users u
         LEFT JOIN branches b ON b.id = u.branch_id
-        WHERE LOWER(u.role) LIKE '%admin%' OR u.role IS NULL
+        WHERE LOWER(COALESCE(u.role, '')) LIKE '%admin%'
         ORDER BY u.id ASC
     """)
 
@@ -480,33 +482,41 @@ async def del_admin_start(message: types.Message, state: FSMContext):
         await message.answer("👥 Adminlar hozircha mavjud emas.")
         return
 
-    text = "🗑️ <b>O‘chirish uchun admin ID kiriting:</b>\n\n"
-    messages = []
+    text_header = "🗑️ <b>O‘chirish uchun admin ID kiriting:</b>\n\n"
+    full_message = text_header
+    all_messages = []
+    count = 0
 
-    for a in admins:
+    for idx, a in enumerate(admins, start=1):
         name = a["full_name"] or "—"
         tg_id = a["telegram_id"] or "—"
         branch = a["branch_name"] or f"Filial ID: {a['branch_id'] or '—'}"
+        created_at = a["created_at"] or "—"
 
         block = (
-            f"<b>{a['id']}.</b> 👤 {name}\n"
-            f"🆔 <code>{tg_id}</code>\n"
-            f"🏢 {branch}\n"
+            f"<b>{idx}.</b> 👤 {name}\n"
+            f"🆔 <b>ID:</b> <code>{a['id']}</code> | <b>Telegram:</b> <code>{tg_id}</code>\n"
+            f"🏢 <b>Filial:</b> {branch}\n"
+            f"🕓 <b>Qo‘shilgan:</b> {created_at}\n"
             "━━━━━━━━━━━━━━━━━━━━━━━\n"
         )
 
-        if len(text) + len(block) > 3500:
-            messages.append(text)
-            text = ""
+        # Telegram xabar limiti (4096 belgidan oshmasin)
+        if len(full_message) + len(block) > 3500:
+            all_messages.append(full_message)
+            full_message = ""
 
-        text += block
+        full_message += block
+        count += 1
 
-    if text:
-        messages.append(text)
+    if full_message:
+        all_messages.append(full_message)
 
-    for msg_text in messages:
+    # Hamma xabarlarni ketma-ket yuboramiz
+    for msg_text in all_messages:
         await message.answer(msg_text, parse_mode="HTML")
 
+    await message.answer(f"✅ Jami {count} ta admin topildi.", parse_mode="HTML")
     await state.set_state(DelAdminFSM.admin_id)
 
 # ===============================
