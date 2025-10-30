@@ -20,6 +20,17 @@ class ReportState(StatesGroup):
 class ProblemFSM(StatesGroup):
     waiting_description = State()
     waiting_photo = State()
+    
+
+# ====================================================
+# 🧾 BUGUNGI HISOBOT FSM
+# ====================================================
+class ReportFSM(StatesGroup):
+    waiting_for_sale = State()
+    waiting_for_expense = State()
+    waiting_for_balance = State()
+    confirm_report = State()
+
 
 
 # ===============================
@@ -292,3 +303,185 @@ async def save_note(message: types.Message):
     database.execute("INSERT INTO notes (telegram_id, text) VALUES (:u, :t)",
                      {"u": message.from_user.id, "t": text})
     await message.answer("📝 Eslatma saqlandi (faqat sizga ko‘rinadi).")
+@router.message(F.text == "🧾 Mahsulotlar")
+async def mahsulot_menu(message: types.Message):
+    kb = ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="➕ Mahsulot qo‘shish"), KeyboardButton(text="➖ Mahsulot o‘chirish")],
+            [KeyboardButton(text="⬅️ Menyuga qaytish")]
+        ],
+        resize_keyboard=True
+    )
+    await message.answer("📦 Mahsulotlar bo‘limi:", reply_markup=kb)
+
+
+# ====================================================
+# 🧾 BUGUNGI HISOBOTNI YUBORISH
+# ====================================================
+@router.message(F.text == "🧾 Bugungi hisobotni yuborish")
+async def start_daily_report(message: types.Message, state: FSMContext):
+    await message.answer("💰 Bugungi savdo summasini kiriting (so‘mda):")
+    await state.set_state(ReportFSM.waiting_for_sale)
+
+
+# 💰 Savdo summasi
+@router.message(ReportFSM.waiting_for_sale)
+async def get_sale(message: types.Message, state: FSMContext):
+    try:
+        sale = int(message.text.replace(" ", ""))
+    except ValueError:
+        await message.answer("❗️Faqat raqam kiriting. Masalan: 2500000")
+        return
+
+    await state.update_data(sale=sale)
+    await message.answer("💸 Bugungi rashodni kiriting (so‘mda):")
+    await state.set_state(ReportFSM.waiting_for_expense)
+
+
+# 💸 Rashod summasi
+@router.message(ReportFSM.waiting_for_expense)
+async def get_expense(message: types.Message, state: FSMContext):
+    try:
+        expense = int(message.text.replace(" ", ""))
+    except ValueError:
+        await message.answer("❗️Faqat raqam kiriting.")
+        return
+
+    await state.update_data(expense=expense)
+    await message.answer("💵 Qolgan pulni kiriting (so‘mda):")
+    await state.set_state(ReportFSM.waiting_for_balance)
+
+
+# 💵 Qolgan pul
+@router.message(ReportFSM.waiting_for_balance)
+async def get_balance(message: types.Message, state: FSMContext):
+    try:
+        balance = int(message.text.replace(" ", ""))
+    except ValueError:
+        await message.answer("❗️Faqat raqam kiriting.")
+        return
+
+    await state.update_data(balance=balance)
+
+    data = await state.get_data()
+    sale = data["sale"]
+    expense = data["expense"]
+    balance = data["balance"]
+
+    # Tasdiqlash
+    confirm_text = (
+        f"🧾 <b>Bugungi hisobot</b>:\n\n"
+        f"💰 Savdo: {sale:,} so‘m\n"
+        f"💸 Rashod: {expense:,} so‘m\n"
+        f"💵 Qolgan pul: {balance:,} so‘m\n\n"
+        f"Tasdiqlaysizmi?"
+    )
+
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="✅ Tasdiqlash", callback_data="confirm_report")],
+        [InlineKeyboardButton(text="❌ Bekor qilish", callback_data="cancel_report")]
+    ])
+
+    await message.answer(confirm_text, reply_markup=kb, parse_mode="HTML")
+    await state.set_state(ReportFSM.confirm_report)
+
+
+# ✅ Tasdiqlash — hisobotni superadmin’ga yuborish
+@router.callback_query(F.data == "confirm_report")
+async def confirm_report(callback: types.CallbackQuery, state: FSMContext):
+    data = await state.get_data()
+    sale = data["sale"]
+    expense = data["expense"]
+    balance = data["balance"]
+
+    today = date.today()
+    user_id = callback.from_user.id
+    user = database.fetchone("SELECT full_name, branch_id FROM users WHERE telegram_id = :u", {"u": user_id})
+    branch = database.fetchone("SELECT name FROM branches WHERE id = :id", {"id": user["branch_id"]})
+
+    branch_name = branch["name"]
+    full_name = user["full_name"]
+
+    # Mahsulotlar
+    remaining = database.fetchall("""
+        SELECT p.name, r.amount FROM remaining_products r
+        LEFT JOIN products p ON p.id = r.product_id
+        WHERE r.user_id = :u AND r.date = :d
+    """, {"u": user_id, "d": today})
+
+    sold = database.fetchall("""
+        SELECT p.name, s.amount FROM sold_products s
+        LEFT JOIN products p ON p.id = s.product_id
+        WHERE s.user_id = :u AND s.date = :d
+    """, {"u": user_id, "d": today})
+
+    # 🧾 Hisobot matni
+    report_text = (
+        f"📅 <b>{branch_name}</b> — bugungi hisobot ({today}):\n\n"
+        f"👷‍♂️ Ishchi: <b>{full_name}</b>\n"
+        f"🏢 Filial: {branch_name}\n"
+        f"🆔 Telegram ID: <code>{user_id}</code>\n\n"
+        f"💰 Savdo: {sale:,} so‘m\n"
+        f"💸 Rashod: {expense:,} so‘m\n"
+        f"💵 Qolgan pul: {balance:,} so‘m\n\n"
+    )
+
+    if remaining:
+        report_text += "📦 <b>Qolgan mahsulotlar:</b>\n"
+        for i, r in enumerate(remaining, start=1):
+            report_text += f"{i}. {r['name']} — {r['amount']}\n"
+    else:
+        report_text += "📦 Qolgan mahsulotlar: Yo‘q\n"
+
+    if sold:
+        report_text += "\n🛒 <b>Sotilgan mahsulotlar:</b>\n"
+        for i, s in enumerate(sold, start=1):
+            report_text += f"{i}. {s['name']} — {s['amount']}\n"
+    else:
+        report_text += "\n🛒 Sotilgan mahsulotlar: Yo‘q\n"
+
+    report_text += "\n━━━━━━━━━━━━━━━━━━━━━━━"
+
+    # Superadmin’ga yuborish
+    await callback.bot.send_message(chat_id=SUPERADMIN_ID, text=report_text, parse_mode="HTML")
+
+    # Excel faylga saqlash
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Hisobot"
+
+    headers = ["Nomi", "Miqdori", "Turi"]
+    ws.append(headers)
+
+    bold = Font(bold=True)
+    for col in range(1, 4):
+        ws.cell(row=1, column=col).font = bold
+        ws.cell(row=1, column=col).fill = PatternFill(start_color="4F81BD", end_color="4F81BD", fill_type="solid")
+        ws.cell(row=1, column=col).alignment = Alignment(horizontal="center", vertical="center")
+
+    # Qolganlar
+    for r in remaining:
+        ws.append([r["name"], r["amount"], "Qolgan"])
+
+    # Sotilganlar
+    for s in sold:
+        ws.append([s["name"], s["amount"], "Sotilgan"])
+
+    filename = f"{branch_name}_{today}_hisobot.xlsx"
+    path = os.path.join("/tmp", filename)
+    wb.save(path)
+
+    await callback.bot.send_document(SUPERADMIN_ID, FSInputFile(path), caption=f"📊 Excel fayl: {branch_name} — {today}")
+    os.remove(path)
+
+    await callback.message.answer("✅ Hisobot muvaffaqiyatli yuborildi.", reply_markup=get_worker_kb())
+    await state.clear()
+    await callback.answer("Yuborildi ✅")
+
+
+# ❌ Bekor qilish
+@router.callback_query(F.data == "cancel_report")
+async def cancel_report(callback: types.CallbackQuery, state: FSMContext):
+    await callback.message.answer("❌ Hisobot bekor qilindi.", reply_markup=get_worker_kb())
+    await state.clear()
+    await callback.answer()
