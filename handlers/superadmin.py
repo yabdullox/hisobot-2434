@@ -381,18 +381,16 @@ async def admin_list(message: types.Message):
             b.name AS branch_name
         FROM users u
         LEFT JOIN branches b ON b.id = u.branch_id
-        WHERE u.role = 'admin'
+        WHERE u.role IN ('admin', 'superadmin', 'worker')
         ORDER BY u.id ASC
     """)
 
     if not admins:
-        await message.answer("👥 Hozircha adminlar mavjud emas.")
+        await message.answer("👥 Hozircha foydalanuvchilar mavjud emas.")
         return
 
-    text = "👥 <b>Adminlar ro‘yxati:</b>\n\n"
-    count = 0
-    for a in admins:
-        count += 1
+    text = "👥 <b>Foydalanuvchilar ro‘yxati:</b>\n\n"
+    for idx, a in enumerate(admins, start=1):
         name = a['full_name'] or "—"
         tg_id = a['telegram_id'] or "—"
         branch = a['branch_name'] or f"ID: {a['branch_id'] or '—'}"
@@ -400,7 +398,7 @@ async def admin_list(message: types.Message):
         created = a['created_at'].strftime('%Y-%m-%d %H:%M') if a.get('created_at') else "—"
 
         text += (
-            f"<b>{count}.</b> 👤 <b>{name}</b>\n"
+            f"<b>{idx}.</b> 👤 <b>{name}</b>\n"
             f"🆔 <b>ID:</b> <code>{tg_id}</code>\n"
             f"🏢 <b>Filial:</b> {branch}\n"
             f"⚙️ <b>Roli:</b> {role}\n"
@@ -408,8 +406,8 @@ async def admin_list(message: types.Message):
             "━━━━━━━━━━━━━━━━━━━━━━━\n"
         )
 
-        # Har 40 tadan keyin alohida xabar jo‘natamiz, Telegram limitdan oshmasin
-        if count % 40 == 0:
+        # Har 40 tadan keyin alohida xabar yuboriladi (limitdan chiqmaslik uchun)
+        if idx % 40 == 0:
             await message.answer(text, parse_mode="HTML")
             text = ""
 
