@@ -461,7 +461,6 @@ async def add_admin_finish(message: types.Message, state: FSMContext):
     await state.clear()
     await message.answer("✅ Admin qo‘shildi.")
 
-
 @router.message(F.text == "🗑️ Adminni o‘chirish")
 async def del_admin_start(message: types.Message, state: FSMContext):
     admins = database.fetchall("""
@@ -481,28 +480,34 @@ async def del_admin_start(message: types.Message, state: FSMContext):
         await message.answer("👥 Adminlar hozircha mavjud emas.")
         return
 
+    # Matnni to‘plab ketamiz
     text = "🗑️ <b>O‘chirish uchun admin ID kiriting:</b>\n\n"
-    counter = 0
+    messages = []  # keyinchalik bo‘lib yuboramiz
     for a in admins:
         name = a["full_name"] or "—"
         tg_id = a["telegram_id"] or "—"
         branch = a["branch_name"] or f"Filial ID: {a['branch_id'] or '—'}"
-        counter += 1
 
-        text += (
+        block = (
             f"<b>{a['id']}.</b> 👤 {name}\n"
             f"🆔 <code>{tg_id}</code>\n"
             f"🏢 {branch}\n"
             "━━━━━━━━━━━━━━━━━━━━━━━\n"
         )
 
-        # Telegram xabar limitidan chiqmaslik uchun 40 tadan keyin bo‘lib yuboramiz
-        if counter % 40 == 0:
-            await message.answer(text, parse_mode="HTML")
+        # Xabar uzunligini nazorat qilamiz (Telegram limiti ~4096 belgi)
+        if len(text) + len(block) > 3500:
+            messages.append(text)
             text = ""
 
+        text += block
+
     if text:
-        await message.answer(text, parse_mode="HTML")
+        messages.append(text)
+
+    # Hammasini yuboramiz
+    for msg_text in messages:
+        await message.answer(msg_text, parse_mode="HTML")
 
     await state.set_state(DelAdminFSM.admin_id)
 
