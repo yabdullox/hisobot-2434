@@ -675,7 +675,134 @@ async def export_today_branch(callback: types.CallbackQuery):
         parse_mode="HTML"
     )
     os.remove(path)
+# =====================================
+# 📈 Umumiy barcha hisobotlar — bitta filial uchun
+# =====================================
+@router.callback_query(F.data == "export:all")
+async def choose_branch_all(callback: types.CallbackQuery):
+    """Filial tanlash — umumiy hisobot uchun."""
+    branches = database.fetchall("SELECT id, name FROM branches ORDER BY id ASC")
+    if not branches:
+        await callback.message.answer("🏢 Hech qanday filial topilmadi.")
+        return
 
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=b["name"], callback_data=f"export_all_branch:{b['id']}")] for b in branches
+    ])
+    kb.inline_keyboard.append([InlineKeyboardButton(text="❌ Bekor qilish", callback_data="export:cancel")])
+
+    await callback.message.answer("📊 Qaysi filialning <b>umumiy hisobotini</b> eksport qilmoqchisiz?", 
+                                  reply_markup=kb, parse_mode="HTML")
+
+
+# =====================================
+# 📆 Umumiy barcha hisobotlar — filial tanlash (xuddi bugungidek)
+# =====================================
+@router.callback_query(F.data == "export:all")
+async def choose_branch_all(callback: types.CallbackQuery):
+    """Umumiy hisobotlar uchun filial tanlash."""
+    branches = database.fetchall("SELECT id, name FROM branches ORDER BY id ASC")
+    if not branches:
+        await callback.message.answer("🏢 Hech qanday filial topilmadi.")
+        return
+
+    # Inline tugmalar (bir xil dizayn)
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=b["name"], callback_data=f"export_all_branch:{b['id']}")] for b in branches
+    ])
+    kb.inline_keyboard.append([InlineKeyboardButton(text="❌ Bekor qilish", callback_data="export:cancel")])
+
+    await callback.message.answer(
+        "📊 Qaysi filialning <b>umumiy hisobotini</b> eksport qilmoqchisiz?",
+        reply_markup=kb,
+        parse_mode="HTML"
+    )
+
+
+# =====================================
+# 📈 Tanlangan filial uchun umumiy hisobotni Excel’ga eksport qilish
+# =====================================
+@router.callback_query(F.data.startswith("export_all_branch:"))
+async def export_all_branch_reports(callback: types.CallbackQuery):
+    """Tanlangan filialning barcha hisobotlarini Excel'ga chiqaradi."""
+    branch_id = int(callback.data.split(":")[1])
+
+    reports = database.fetchall("""
+        SELECT 
+            u.full_name AS worker_name,
+            r.date,
+            r.start_time,
+            r.end_time,
+            r.text AS report_text,
+            b.name AS branch_name
+        FROM reports r
+        JOIN users u ON r.user_id = u.telegram_id
+        JOIN branches b ON u.branch_id = b.id
+        WHERE u.branch_id = :bid AND r.text IS NOT NULL
+        ORDER BY r.date DESC, r.start_time
+    """, {"bid": branch_id})
+
+    if not reports:
+        await callback.message.answer("📭 Bu filialda hali umumiy hisobotlar yo‘q.")
+        return
+
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
+    from datetime import datetime
+    import os
+    from aiogram.types import FSInputFile
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = reports[0]["branch_name"]
+
+    # Headerlar
+    headers = ["👷 Ishchi", "📅 Sana", "🕘 Boshlanish", "🏁 Tugash", "🧾 Hisobot matni"]
+    ws.append(headers)
+
+    # Header dizayni
+    header_font = Font(bold=True, color="FFFFFF")
+    header_fill = PatternFill(start_color="4F81BD", end_color="4F81BD", fill_type="solid")
+    align_center = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    border = Border(left=Side(style="thin"), right=Side(style="thin"),
+                    top=Side(style="thin"), bottom=Side(style="thin"))
+
+    for c in range(1, len(headers) + 1):
+        cell = ws.cell(row=1, column=c)
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = align_center
+        cell.border = border
+
+    # Ma'lumotlarni qo‘shish
+    for r in reports:
+        ws.append([
+            r["worker_name"],
+            r["date"].strftime("%Y-%m-%d"),
+            r["start_time"] or "-",
+            r["end_time"] or "-",
+            r["report_text"] or "",
+        ])
+
+    # Ustun kengligi avtomatik
+    for col in ws.columns:
+        max_len = 0
+        col_letter = col[0].column_letter
+        for cell in col:
+            if cell.value:
+                max_len = max(max_len, len(str(cell.value)))
+        ws.column_dimensions[col_letter].width = max_len + 4
+
+    filename = f"{reports[0]['branch_name']}_Umumiy_{datetime.now().strftime('%Y%m%d')}.xlsx"
+    path = os.path.join("/tmp", filename)
+    wb.save(path)
+
+    await callback.message.answer_document(
+        FSInputFile(path),
+        caption=f"📈 <b>{reports[0]['branch_name']}</b> filialining umumiy hisobotlari tayyor ✅",
+        parse_mode="HTML"
+    )
+    os.remove(path)
 
 # =====================================
 # ❌ Bekor qilish
