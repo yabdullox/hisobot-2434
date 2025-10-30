@@ -62,6 +62,94 @@ async def cmd_start(message: types.Message):
     )
 
 
+# ➕ Adminni filialga biriktirish - bosilganda adminlar ro'yxati chiqadi
+@router.message(F.text == "➕ Adminni filialga biriktirish")
+async def start_admin_branch_link(message: types.Message):
+    # Adminlar ro'yxatini oling (role='admin')
+    admins = database.fetchall("SELECT id, full_name, telegram_id FROM users WHERE role='admin' ORDER BY id")
+    if not admins:
+        await message.answer("👥 Hozircha adminlar mavjud emas.")
+        return
+
+    kb = InlineKeyboardMarkup()
+    for a in admins:
+        # callback format: link_admin:{admin_id}
+        kb.add(InlineKeyboardButton(text=f"{a['full_name']} ({a['telegram_id']})", callback_data=f"link_admin:{a['id']}"))
+
+    kb.add(InlineKeyboardButton(text="❌ Bekor qilish", callback_data="link_admin:cancel"))
+    await message.answer("👥 Adminni tanlang — keyin filialni tanlaysiz:", reply_markup=kb)
+
+
+# Callback: admin tanlandi -> filiallar ro'yxatini ko'rsat
+@router.callback_query(F.data.startswith("link_admin:"))
+async def handle_admin_selected(callback: types.CallbackQuery):
+    data = callback.data.split(":")[1]
+    if data == "cancel":
+        await callback.message.answer("❌ Bekor qilindi.")
+        await callback.answer()
+        return
+
+    admin_id = int(data)
+    # filiallar
+    branches = database.fetchall("SELECT id, name FROM branches ORDER BY id")
+    if not branches:
+        await callback.message.answer("🏢 Hozircha filiallar mavjud emas.")
+        await callback.answer()
+        return
+
+    kb = InlineKeyboardMarkup()
+    for b in branches:
+        # callback format: link_admin_confirm:{admin_id}:{branch_id}
+        kb.add(InlineKeyboardButton(text=f"{b['name']} (ID:{b['id']})", callback_data=f"link_admin_confirm:{admin_id}:{b['id']}"))
+
+    kb.add(InlineKeyboardButton(text="❌ Bekor qilish", callback_data="link_admin:cancel"))
+    await callback.message.answer("🏢 Qaysi filialga biriktirmoqchisiz? (bitta yoki bir nechta tanlang — ketma-ket bosing)", reply_markup=kb)
+    await callback.answer()
+
+
+# Callback: tasdiqlash -> jadvalga yozamiz (bitta tugma bosilganda qo'shiladi)
+@router.callback_query(F.data.startswith("link_admin_confirm:"))
+async def handle_admin_branch_confirm(callback: types.CallbackQuery):
+    parts = callback.data.split(":")
+    admin_id = int(parts[1])
+    branch_id = int(parts[2])
+
+    # Chek — admin_branches jadvali borligini ta'minlash (agar kerak bo'lsa)
+    database.execute("""
+        CREATE TABLE IF NOT EXISTS admin_branches (
+            id SERIAL PRIMARY KEY,
+            admin_id BIGINT NOT NULL,
+            branch_id INTEGER NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
+    # Tekshir: bunday bog'lanish mavjudmi?
+    exists = database.fetchone(
+        "SELECT id FROM admin_branches WHERE admin_id=:a AND branch_id=:b",
+        {"a": admin_id, "b": branch_id}
+    )
+    if exists:
+        await callback.answer("⚠️ Bu admin allaqachon ushbu filialga biriktirilgan.", show_alert=True)
+        return
+
+    # Chek: admin 5 tadan ortiq filialga biriktirilmasin
+    count = database.fetchone(
+        "SELECT COUNT(*) AS cnt FROM admin_branches WHERE admin_id=:a",
+        {"a": admin_id}
+    )
+    if count and int(count.get("cnt", 0)) >= 5:
+        await callback.answer("❌ Bu admin allaqachon 5 ta filialga biriktirilgan.", show_alert=True)
+        return
+
+    # Qo'shish
+    database.execute(
+        "INSERT INTO admin_branches (admin_id, branch_id) VALUES (:a, :b)",
+        {"a": admin_id, "b": branch_id}
+    )
+
+    await callback.answer("✅ Admin muvaffaqiyatli biriktirildi.", show_alert=True)
+    await callback.message.answer(f"✅ Admin ID {admin_id} ✅ Filial ID {branch_id} ga biriktirildi.")
 # ================== 📊 Hisobotlar menyusi ==================
 @router.message(F.text.in_(["📊 Bugungi hisobotlar", "📈 Umumiy hisobotlar"]))
 async def show_report_type_menu(message: types.Message):
@@ -193,6 +281,7 @@ async def show_all_reports(callback: types.CallbackQuery):
         await callback.message.answer(text, parse_mode="HTML")
 
     await callback.answer()
+
 
 
 # ===============================
