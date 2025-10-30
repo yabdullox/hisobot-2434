@@ -490,14 +490,13 @@ async def del_admin_start(message: types.Message, state: FSMContext):
     buffer = text_header
     messages = []
     count = 0
-
-    for idx, a in enumerate(admins, start=1):
+  for idx, a in enumerate(admins, start=1):
         block = (
             f"<b>{idx}.</b> 👤 {a['full_name'] or '-'}\n"
             f"🆔 <b>ID:</b> <code>{a['id']}</code> | <b>Telegram:</b> <code>{a['telegram_id'] or '-'}</code>\n"
             f"🏢 <b>Filial:</b> {a['branch_name'] or f'Filial ID: {a['branch_id'] or '-'}'}\n"
             f"⚙️ <b>Rol:</b> {a['role'] or 'admin'}\n"
-            f"🕓 <b>Qo‘shilgan:</b> {a['created_at'] or '-'}\n"
+            f"🕓 <b>Qo'shilgan:</b> {a['created_at'] or '-'}\n"
             "━━━━━━━━━━━━━━━━━━━━━━━\n"
         )
 
