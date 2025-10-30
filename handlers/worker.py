@@ -337,16 +337,29 @@ async def show_notes(message: types.Message):
             text += f"🕒 {t}\n📝 {n['text']}\n\n"
         await message.answer(text, parse_mode="HTML")
 
-
 @router.message(F.text.regexp(r".+") & ~F.text.in_([
     "🕘 Ishni boshladim", "🏁 Ishni tugatdim",
     "🧹 Tozalash rasmi yuborish", "💬 Muammo yuborish",
     "🧾 Bugungi hisobotni yuborish", "💰 Bonus / Jarimalarim",
     "📓 Eslatmalarim", "⬅️ Menyuga qaytish",
-    "📅 Bugungi", "📋 Umumiy"
+    "📅 Bugungi", "📋 Umumiy", "⬅️ Orqaga"
 ]))
 async def save_note(message: types.Message):
-    """Foydalanuvchi yuborgan matnni eslatma sifatida saqlaydi."""
+    """
+    Eslatma funksiyasi endi faqat WORKER foydalanuvchilar uchun ishlaydi.
+    Superadmin va Adminlar uchun bu handler hech narsa qilmaydi.
+    """
+    # 🔹 Foydalanuvchining roli kimligini tekshiramiz
+    user = database.fetchone(
+        "SELECT role FROM users WHERE telegram_id = :tid",
+        {"tid": message.from_user.id}
+    )
+
+    # 🔹 Agar worker bo‘lmasa — chiqamiz, hech narsa qilmaymiz
+    if not user or user.get("role") != "worker":
+        return
+
+    # 🔹 Faqat worker uchun ishlaydi:
     user_id = message.from_user.id
     text = message.text.strip()
 
@@ -358,3 +371,5 @@ async def save_note(message: types.Message):
         "INSERT INTO notes (telegram_id, text) VALUES (:u, :t)",
         {"u": user_id, "t": text}
     )
+
+    await message.answer("📝 Eslatma saqlandi (faqat sizga ko‘rinadi).")
