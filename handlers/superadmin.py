@@ -1,4 +1,4 @@
-# src/handlers/superadmin.py
+    # src/handlers/superadmin.py
 from aiogram import Router, types, F
 from aiogram.filters import Command
 from aiogram.types import (
@@ -191,50 +191,93 @@ async def choose_branch(callback: types.CallbackQuery):
     await callback.answer()
 
 
-# ================== Bugungi filial hisobotlari ==================
-@router.callback_query(F.data.startswith("today_branch:"))
-async def show_today_reports(callback: types.CallbackQuery):
-    branch_id = int(callback.data.split(":")[1])
-    today = datetime.date.today()
 
-    reports = database.fetchall(
-        """
-        SELECT r.*, u.full_name, u.telegram_id, b.name AS branch_name
-        FROM reports r
-        LEFT JOIN users u ON r.user_id = u.telegram_id
-        LEFT JOIN branches b ON r.branch_id = b.id
-        WHERE r.date = :today AND r.branch_id = :bid
-        ORDER BY r.created_at DESC
-        """,
-        {"today": today, "bid": branch_id}
-    )
-
-    if not reports:
-        await callback.message.answer("📭 Bu filialda bugun hisobot yo‘q.")
-        await callback.answer()
+# ===============================
+# 📊 HISOBOTLAR BO‘LIMI
+# ===============================
+@router.message(F.text == "📊 Bugungi hisobotlar")
+async def show_today_reports(message: types.Message):
+    """Bugungi hisobotlarni filiallar bo‘yicha chiqarish."""
+    branches = database.fetchall("SELECT id, name FROM branches ORDER BY id")
+    if not branches:
+        await message.answer("❌ Hozircha filiallar yo‘q.")
         return
 
-    for r in reports:
-        full_name = r.get("full_name", "—")
-        branch = r.get("branch_name", "—")
-        user_id = r.get("telegram_id", "—")
-        date_str = str(r.get("date") or today)
-        time_str = str(r.get("end_time") or r.get("start_time") or "—")
-        report_text = r.get("text") or "—"
+    keyboard = [
+        [types.KeyboardButton(text=branch['name'])] for branch in branches
+    ]
+    keyboard.append([types.KeyboardButton(text="❌ Bekor qilish")])
 
-        text = (
-            f"🧾 <b>Yangi ishchi hisobot!</b>\n\n"
-            f"👷 Ishchi: <b>{full_name}</b>\n"
-            f"🏢 Filial ID: <b>{branch_id}</b> ({branch})\n"
-            f"🆔 Telegram ID: <code>{user_id}</code>\n\n"
-            f"📅 Sana: {date_str}\n"
-            f"🕘 Vaqt: {time_str}\n\n"
-            f"🧹 Hisobot matni:\n<code>{report_text}</code>"
+    await message.answer(
+        "📅 Qaysi filialning bugungi hisobotlarini ko‘rmoqchisiz?",
+        reply_markup=types.ReplyKeyboardMarkup(
+            keyboard=keyboard,
+            resize_keyboard=True
+        )
+    )
+
+
+@router.message(F.text.in_(["❌ Bekor qilish", "❌ Bekor"]))
+async def cancel_reports(message: types.Message):
+    """Bekor tugmasi uchun handler."""
+    from keyboards.superadmin_kb import get_superadmin_kb
+    await message.answer("❌ Amal bekor qilindi.", reply_markup=get_superadmin_kb())
+
+
+@router.message()
+async def show_reports_for_branch(message: types.Message):
+    """Tanlangan filial uchun bugungi hisobotlarni chiqaradi."""
+    branch_name = message.text.strip()
+
+    # 🔹 Filialni topamiz
+    branch = database.fetchone(
+        "SELECT id FROM branches WHERE name=:n",
+        {"n": branch_name}
+    )
+    if not branch:
+        return  # boshqa tugmalar uchun jim turadi
+
+    today = date.today()
+
+    # 🔹 Bugungi hisobotlarni olish (eng muhim o‘zgarishlar shu joyda)
+    reports = database.fetchall("""
+        SELECT 
+            r.user_id,
+            u.full_name,
+            r.date,
+            r.start_time,
+            r.end_time,
+            r.text
+        FROM reports r
+        LEFT JOIN users u ON u.telegram_id = r.user_id
+        WHERE DATE(r.date) = :today
+          AND r.branch_id = :bid
+          AND r.text IS NOT NULL
+        ORDER BY r.date DESC, r.start_time
+    """, {"today": today, "bid": branch['id']})
+
+    if not reports:
+        await message.answer("📭 Bu filialda bugun hisobot yo‘q.")
+        return
+
+    # 🔹 Chiroyli formatda chiqaramiz
+    text = f"📋 <b>{branch_name}</b> filiali bugungi hisobotlari:\n\n"
+    for r in reports:
+        text += (
+            f"👷 <b>{r['full_name']}</b>\n"
+            f"🕘 <i>{r['start_time'] or '-'} - {r['end_time'] or '-'}</i>\n"
+            f"📅 <code>{r['date']}</code>\n"
+            f"🧾 {r['text']}\n\n"
         )
 
-        await callback.message.answer(text, parse_mode="HTML")
+    await message.answer(text, parse_mode="HTML")
 
-    await callback.answer()
+
+
+
+
+
+
 
 
 # ================== Umumiy filial hisobotlari (oxirgi 20)
