@@ -469,81 +469,217 @@ async def del_admin_finish(message: types.Message, state: FSMContext):
 # ===============================
 # Export menyulari (Excel/CSV)
 # ===============================
-@router.message(F.text == "📤 Export (Excel/CSV)")
+
+# =====================================
+# 📤 Export menyusi
+# =====================================
+@router.message(F.text == "📤 Export (Excel / CSV)")
 async def export_menu(message: types.Message):
-    kb = ReplyKeyboardMarkup(
-        keyboard=[
-            [KeyboardButton(text="📅 Bugungi hisobotni eksport qilish")],
-            [KeyboardButton(text="📊 Umumiy hisobotni eksport qilish")],
-            [KeyboardButton(text="⬅️ Menyuga qaytish")]
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(text="📅 Bugungi hisobotni eksport qilish", callback_data="export:today"),
         ],
-        resize_keyboard=True
-    )
-    await message.answer("📤 Qaysi hisobotni eksport qilamiz?", reply_markup=kb)
+        [
+            InlineKeyboardButton(text="📆 Umumiy barcha hisobotlar (Excel)", callback_data="export:all")
+        ],
+        [
+            InlineKeyboardButton(text="❌ Bekor qilish", callback_data="export:cancel")
+        ]
+    ])
+    await message.answer("📊 Qaysi turdagi hisobotni eksport qilmoqchisiz?", reply_markup=kb)
 
 
-@router.message(F.text == "📅 Bugungi hisobotni eksport qilish")
-async def export_today_reports(message: types.Message):
-    today = datetime.date.today()
-    reports = database.fetchall(
-        """
+# =====================================
+# 📆 Umumiy barcha hisobotlarni Excel’ga eksport qilish
+# =====================================
+@router.callback_query(F.data == "export:all")
+async def export_all_reports(callback: types.CallbackQuery):
+    try:
+        reports = database.fetchall("""
+            SELECT 
+                u.full_name AS worker_name,
+                u.branch_id,
+                b.name AS branch_name,
+                r.date,
+                r.start_time,
+                r.end_time,
+                r.text AS report_text
+            FROM reports r
+            JOIN users u ON r.user_id = u.telegram_id
+            JOIN branches b ON u.branch_id = b.id
+            ORDER BY b.id, r.date DESC
+        """)
+
+        if not reports:
+            await callback.message.answer("📭 Umumiy hisobotlar mavjud emas.")
+            return
+
+        wb = Workbook()
+        sheet_map = {}
+
+        # Excel dizayn
+        header_font = Font(bold=True, color="FFFFFF")
+        header_fill = PatternFill(start_color="4F81BD", end_color="4F81BD", fill_type="solid")
+        align_center = Alignment(horizontal="center", vertical="center", wrap_text=True)
+        border = Border(left=Side(style="thin"), right=Side(style="thin"),
+                        top=Side(style="thin"), bottom=Side(style="thin"))
+
+        for r in reports:
+            branch_name = r["branch_name"] or f"Filial_{r['branch_id']}"
+            sheet_name = branch_name[:31]
+            if sheet_name not in sheet_map:
+                ws = wb.create_sheet(title=sheet_name)
+                sheet_map[sheet_name] = ws
+                headers = ["👷 Ishchi", "📅 Sana", "🕘 Boshlanish", "🏁 Tugash", "🧾 Hisobot matni"]
+                ws.append(headers)
+                for c in range(1, len(headers) + 1):
+                    cell = ws.cell(row=1, column=c)
+                    cell.font = header_font
+                    cell.fill = header_fill
+                    cell.alignment = align_center
+                    cell.border = border
+
+            ws = sheet_map[sheet_name]
+            ws.append([
+                r["worker_name"],
+                r["date"].strftime("%Y-%m-%d") if r["date"] else "-",
+                r["start_time"] or "-",
+                r["end_time"] or "-",
+                r["report_text"] or "",
+            ])
+
+        # Sheet kengligi
+        for ws in wb.worksheets:
+            for col in ws.columns:
+                max_len = 0
+                col_letter = col[0].column_letter
+                for cell in col:
+                    if cell.value:
+                        max_len = max(max_len, len(str(cell.value)))
+                ws.column_dimensions[col_letter].width = max_len + 4
+
+        if "Sheet" in wb.sheetnames:
+            wb.remove(wb["Sheet"])
+
+        filename = f"Umumiy_Hisobot_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+        path = os.path.join("/tmp", filename)
+        wb.save(path)
+
+        await callback.message.answer_document(
+            FSInputFile(path),
+            caption="📊 <b>Barcha filiallar bo‘yicha umumiy Excel fayl tayyor!</b>",
+            parse_mode="HTML"
+        )
+        os.remove(path)
+
+    except Exception as e:
+        await callback.message.answer(f"⚠️ Xatolik: {e}")
+
+
+# =====================================
+# 📅 Bugungi hisobotlar uchun filial tanlash
+# =====================================
+@router.callback_query(F.data == "export:today")
+async def choose_branch_today(callback: types.CallbackQuery):
+    branches = database.fetchall("SELECT id, name FROM branches ORDER BY id ASC")
+    if not branches:
+        await callback.message.answer("🏢 Hech qanday filial topilmadi.")
+        return
+
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=b["name"], callback_data=f"export_branch:{b['id']}")] for b in branches
+    ])
+    kb.inline_keyboard.append([InlineKeyboardButton(text="❌ Bekor qilish", callback_data="export:cancel")])
+
+    await callback.message.answer("📍 Qaysi filialning bugungi hisobotini eksport qilmoqchisiz?", reply_markup=kb)
+
+
+# =====================================
+# 📍 Tanlangan filial uchun bugungi hisobotni Excel’ga eksport qilish
+# =====================================
+@router.callback_query(F.data.startswith("export_branch:"))
+async def export_today_branch(callback: types.CallbackQuery):
+    branch_id = int(callback.data.split(":")[1])
+    today = date.today()
+
+    reports = database.fetchall("""
         SELECT 
-            u.full_name AS Ishchi,
-            b.name AS Filial,
-            r.date AS Sana,
-            r.start_time AS "Boshlanish vaqti",
-            r.end_time AS "Tugash vaqti",
-            r.text AS "Hisobot matni"
+            u.full_name AS worker_name,
+            r.date,
+            r.start_time,
+            r.end_time,
+            r.text AS report_text,
+            b.name AS branch_name
         FROM reports r
-        LEFT JOIN users u ON u.telegram_id = r.user_id
-        LEFT JOIN branches b ON b.id = r.branch_id
-        WHERE r.date = :today
+        JOIN users u ON r.user_id = u.telegram_id
+        JOIN branches b ON u.branch_id = b.id
+        WHERE r.date = :today AND u.branch_id = :bid
         ORDER BY r.start_time ASC
-        """,
-        {"today": today}
-    )
+    """, {"today": today, "bid": branch_id})
 
     if not reports:
-        await message.answer("📅 Bugungi hisobotlar mavjud emas.")
+        await callback.message.answer("📭 Bugun bu filialda hisobot yo‘q.")
         return
 
-    file_path = export_reports_to_excel(reports, branch_name=f"Bugungi_{today}", report_type="Bugungi Hisobot")
-    await message.answer_document(FSInputFile(file_path), caption=f"📅 Bugungi hisobotlar ({today}) — Excel fayl")
-    try:
-        os.remove(file_path)
-    except Exception:
-        pass
+    wb = Workbook()
+    ws = wb.active
+    ws.title = reports[0]["branch_name"]
 
+    # Headerlar
+    headers = ["👷 Ishchi", "📅 Sana", "🕘 Boshlanish", "🏁 Tugash", "🧾 Hisobot matni"]
+    ws.append(headers)
 
-@router.message(F.text == "📊 Umumiy hisobotni eksport qilish")
-async def export_all_reports(message: types.Message):
-    reports = database.fetchall(
-        """
-        SELECT 
-            u.full_name AS Ishchi,
-            b.name AS Filial,
-            r.date AS Sana,
-            r.start_time AS "Boshlanish vaqti",
-            r.end_time AS "Tugash vaqti",
-            r.text AS "Hisobot matni"
-        FROM reports r
-        LEFT JOIN users u ON u.telegram_id = r.user_id
-        LEFT JOIN branches b ON b.id = r.branch_id
-        ORDER BY r.date DESC
-        """
+    # Dizayn
+    header_font = Font(bold=True, color="FFFFFF")
+    header_fill = PatternFill(start_color="4F81BD", end_color="4F81BD", fill_type="solid")
+    align_center = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    border = Border(left=Side(style="thin"), right=Side(style="thin"),
+                    top=Side(style="thin"), bottom=Side(style="thin"))
+
+    for c in range(1, len(headers) + 1):
+        cell = ws.cell(row=1, column=c)
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = align_center
+        cell.border = border
+
+    # Ma'lumotlar
+    for r in reports:
+        ws.append([
+            r["worker_name"],
+            r["date"].strftime("%Y-%m-%d"),
+            r["start_time"] or "-",
+            r["end_time"] or "-",
+            r["report_text"] or "",
+        ])
+
+    # Ustun kengligi
+    for col in ws.columns:
+        max_len = 0
+        col_letter = col[0].column_letter
+        for cell in col:
+            if cell.value:
+                max_len = max(max_len, len(str(cell.value)))
+        ws.column_dimensions[col_letter].width = max_len + 4
+
+    filename = f"{reports[0]['branch_name']}_Bugungi_{today}.xlsx"
+    path = os.path.join("/tmp", filename)
+    wb.save(path)
+
+    await callback.message.answer_document(
+        FSInputFile(path),
+        caption=f"📅 <b>{reports[0]['branch_name']}</b> filialining bugungi hisobotlari tayyor ✅",
+        parse_mode="HTML"
     )
+    os.remove(path)
 
-    if not reports:
-        await message.answer("📊 Umumiy hisobotlar topilmadi.")
-        return
 
-    file_path = export_reports_to_excel(reports, branch_name="Barcha_Filiallar", report_type="Umumiy Hisobot")
-    await message.answer_document(FSInputFile(file_path), caption="📊 Umumiy hisobotlar (Excel)")
-    try:
-        os.remove(file_path)
-    except Exception:
-        pass
-
+# =====================================
+# ❌ Bekor qilish
+# =====================================
+@router.callback_query(F.data == "export:cancel")
+async def cancel_export(callback: types.CallbackQuery):
+    await callback.message.answer("❌ Bekor qilindi.")
 
 # ===============================
 # Bonus/Jarimalar ro'yxati
