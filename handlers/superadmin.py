@@ -464,25 +464,47 @@ async def add_admin_finish(message: types.Message, state: FSMContext):
 
 @router.message(F.text == "🗑️ Adminni o‘chirish")
 async def del_admin_start(message: types.Message, state: FSMContext):
-    admins = database.fetchall("SELECT id, full_name FROM users WHERE role='admin'")
+    admins = database.fetchall("""
+        SELECT 
+            u.id,
+            u.full_name,
+            u.telegram_id,
+            u.branch_id,
+            b.name AS branch_name
+        FROM users u
+        LEFT JOIN branches b ON b.id = u.branch_id
+        WHERE u.role = 'admin'
+        ORDER BY u.id ASC
+    """)
+
     if not admins:
-        await message.answer("👥 Adminlar yo‘q.")
+        await message.answer("👥 Adminlar hozircha mavjud emas.")
         return
-    text = "🗑️ O‘chirish uchun admin ID kiriting:\n\n"
+
+    text = "🗑️ <b>O‘chirish uchun admin ID kiriting:</b>\n\n"
+    counter = 0
     for a in admins:
-        text += f"{a['id']}. {a['full_name']}\n"
-    await message.answer(text)
+        name = a["full_name"] or "—"
+        tg_id = a["telegram_id"] or "—"
+        branch = a["branch_name"] or f"Filial ID: {a['branch_id'] or '—'}"
+        counter += 1
+
+        text += (
+            f"<b>{a['id']}.</b> 👤 {name}\n"
+            f"🆔 <code>{tg_id}</code>\n"
+            f"🏢 {branch}\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━\n"
+        )
+
+        # Telegram xabar limitidan chiqmaslik uchun 40 tadan keyin bo‘lib yuboramiz
+        if counter % 40 == 0:
+            await message.answer(text, parse_mode="HTML")
+            text = ""
+
+    if text:
+        await message.answer(text, parse_mode="HTML")
+
     await state.set_state(DelAdminFSM.admin_id)
-
-
-@router.message(DelAdminFSM.admin_id)
-async def del_admin_finish(message: types.Message, state: FSMContext):
-    if not message.text.isdigit():
-        await message.answer("❗️Admin ID kiriting.")
-        return
-    database.execute("DELETE FROM users WHERE id=:id AND role='admin'", {"id": int(message.text)})
-    await state.clear()
-    await message.answer("✅ Admin o‘chirildi.")
 
 
 # ===============================
