@@ -137,7 +137,7 @@ async def receive_report(message: Message, state: FSMContext):
         f"🆔 Telegram ID: <code>{user_id}</code>\n\n"
         f"📅 Sana: <b>{date_str}</b>\n"
         f"🕘 Vaqt: <b>{time_str}</b>\n\n"
-        f"🧹 Hisobot matni:\n{text}"
+        f"🧾 Hisobot matni:\n{text}"
     )
 
     admins = [int(x.strip()) for x in os.getenv("SUPERADMIN_ID", str(SUPERADMIN_ID)).split(",")]
