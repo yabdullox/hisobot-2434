@@ -27,20 +27,8 @@ def get_superadmin_kb():
             KeyboardButton(text="🏢➕ Adminni filialga biriktirish"),
             KeyboardButton(text="🗑️ Adminni o‘chirish")
         ],
-
-        # 👷 ISHCHILAR VA MOLIYA BO‘LIMI
-        [
-            KeyboardButton(text="👷 Ishchilar ro‘yxati"),
-            KeyboardButton(text="💰 Bonus / Jarimalar")
-        ],
         [
             KeyboardButton(text="📤 Export (Excel / CSV)")
-        ],
-
-        # ⚙️ TIZIM / ORQAGA
-        [
-            KeyboardButton(text="⚙️ Sozlamalar"),
-            KeyboardButton(text="🧾 Loglar / Jurnallar")
         ],
         [
             KeyboardButton(text="⬅️ Menyuga qaytish")
