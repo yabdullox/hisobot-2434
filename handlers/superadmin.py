@@ -349,16 +349,43 @@ async def del_branch_finish(message: types.Message, state: FSMContext):
 # ===============================
 # Adminlar ro'yxati va qo'shish/o'chirish
 # ===============================
+# @router.message(F.text == "👥 Adminlar ro‘yxati")
+# async def admin_list(message: types.Message):
+#     admins = database.fetchall("SELECT id, full_name, telegram_id, branch_id FROM users WHERE role='admin'")
+#     if not admins:
+#         await message.answer("👥 Adminlar hozircha mavjud emas.")
+#         return
+#     text = "👥 Adminlar:\n\n"
+#     for a in admins:
+#         text += f"{a['id']}. {a['full_name']} — 🆔 {a['telegram_id']} — Filial: {a.get('branch_id','—')}\n"
+#     await message.answer(text)
 @router.message(F.text == "👥 Adminlar ro‘yxati")
 async def admin_list(message: types.Message):
-    admins = database.fetchall("SELECT id, full_name, telegram_id, branch_id FROM users WHERE role='admin'")
+    admins = database.fetchall("""
+        SELECT id, full_name, telegram_id, branch_id
+        FROM users
+        WHERE role='admin'
+        ORDER BY id
+    """)
+
     if not admins:
-        await message.answer("👥 Adminlar hozircha mavjud emas.")
+        await message.answer("👥 Hozircha adminlar mavjud emas.")
         return
-    text = "👥 Adminlar:\n\n"
-    for a in admins:
-        text += f"{a['id']}. {a['full_name']} — 🆔 {a['telegram_id']} — Filial: {a.get('branch_id','—')}\n"
-    await message.answer(text)
+
+    text = "👥 <b>Adminlar ro‘yxati:</b>\n\n"
+    for idx, a in enumerate(admins, start=1):
+        name = a['full_name'] or "—"
+        tg_id = a['telegram_id'] or "—"
+        branch = a.get('branch_id', '—')
+
+        text += (
+            f"<b>{idx}.</b> 👤 <b>{name}</b>\n"
+            f"🆔 <code>{tg_id}</code>\n"
+            f"🏢 Filial ID: <b>{branch}</b>\n"
+            f"━━━━━━━━━━━━━━━━━━━\n"
+        )
+
+    await message.answer(text, parse_mode="HTML")
 
 
 @router.message(F.text == "➕ Admin qo‘shish")
