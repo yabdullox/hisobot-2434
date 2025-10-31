@@ -108,54 +108,131 @@ async def finish_work(message: Message):
         parse_mode="HTML"
     )
 
-# ===============================
-# 🧾 Bugungi hisobotni yuborish
-# ===============================
 
-
+# 🧾 Bugungi hisobotni boshlash
 @router.message(F.text == "🧾 Bugungi hisobotni yuborish")
 async def start_report(message: types.Message, state: FSMContext):
     await message.answer("💰 Bugungi daromadni kiriting:")
     await state.set_state(ReportState.income)
 
+# 💰 Daromad
 @router.message(ReportState.income)
 async def get_income(message: types.Message, state: FSMContext):
-    await state.update_data(income=int(message.text))
+    await state.update_data(income=float(message.text))
     await message.answer("💸 Bugungi rashodni kiriting:")
     await state.set_state(ReportState.expense)
 
+# 💸 Rashod
 @router.message(ReportState.expense)
 async def get_expense(message: types.Message, state: FSMContext):
-    await state.update_data(expense=int(message.text))
-    await message.answer("🏪 Endi sotilgan mahsulotlarni kiriting (masalan: johori 100):")
-    await state.set_state(ReportState.sales)
+    await state.update_data(expense=float(message.text))
 
-@router.message(ReportState.sales)
-async def get_sales(message: types.Message, state: FSMContext):
-    # bu joyda ombordagi miqdorni kamaytirish kiritiladi
-    await state.update_data(sales=message.text)
-    await message.answer("✅ Hisobotni tasdiqlaysizmi? (ha/yo‘q)")
-    await state.set_state(ReportState.confirm)
+    user_id = message.from_user.id
+    user = database.fetchone("SELECT branch_id FROM users WHERE telegram_id=:tid", {"tid": user_id})
+    if not user:
+        await message.answer("⚠️ Sizning filial topilmadi.")
+        await state.clear()
+        return
 
+    branch_id = user["branch_id"]
+    products = database.list_products_by_branch(branch_id)
+
+    if not products:
+        await message.answer("📦 Omborda mahsulotlar yo‘q.")
+        await state.clear()
+        return
+
+    await state.update_data(products=products, index=0, sold=[], branch_id=branch_id)
+    current = products[0]
+    await message.answer(f"{current['product_name']} — nechta sotildi? ({current['unit']})")
+    await state.set_state(ReportState.product_loop)
+
+# 🏪 Har bir mahsulotni so‘rash
+@router.message(ReportState.product_loop)
+async def process_products(message: types.Message, state: FSMContext):
+    data = await state.get_data()
+    products = data["products"]
+    index = data["index"]
+    sold = data["sold"]
+    branch_id = data["branch_id"]
+
+    try:
+        sold_amount = float(message.text)
+    except ValueError:
+        await message.answer("❌ Faqat raqam kiriting!")
+        return
+
+    current = products[index]
+    product_id = current["id"]
+    old_qty = float(current["quantity"])
+    new_qty = max(old_qty - sold_amount, 0)
+
+    # Omborda miqdorni yangilash
+    database.execute("UPDATE warehouse SET quantity=:q WHERE id=:id", {"q": new_qty, "id": product_id})
+
+    sold.append({
+        "name": current["product_name"],
+        "amount": sold_amount,
+        "unit": current["unit"],
+        "remaining": new_qty
+    })
+
+    index += 1
+    if index < len(products):
+        next_p = products[index]
+        await state.update_data(index=index, sold=sold)
+        await message.answer(f"{next_p['product_name']} — nechta sotildi? ({next_p['unit']})")
+    else:
+        await state.update_data(sold=sold)
+        await message.answer("✅ Hammasi yozildi! Hisobotni yuboraymi? (ha/yo‘q)")
+        await state.set_state(ReportState.confirm)
+
+# ✅ Hisobotni yakunlash
 @router.message(ReportState.confirm)
-async def confirm_report(message: types.Message, state: FSMContext):
+async def finish_report(message: types.Message, state: FSMContext):
     if message.text.lower() != "ha":
         await message.answer("❌ Hisobot bekor qilindi.")
         await state.clear()
         return
 
     data = await state.get_data()
+    user_id = message.from_user.id
+    branch_id = data["branch_id"]
+    income = data["income"]
+    expense = data["expense"]
+    remaining_money = income - expense
+    sold = data["sold"]
+
     today = datetime.now().strftime("%d.%m.%Y")
 
-    text = (
-        f"📅 Sana: {today}\n\n"
-        f"💰 Daromad: {data['income']} so‘m\n"
-        f"💸 Rashod: {data['expense']} so‘m\n"
-        f"🏪 Sotilgan: {data['sales']}\n"
-        f"💵 Qolgan pul: {data['income'] - data['expense']} so‘m"
+    sold_text = "\n".join([f"- {s['name']} — {s['amount']} {s['unit']}" for s in sold])
+    remain_text = "\n".join([f"- {s['name']} — {s['remaining']} {s['unit']}" for s in sold])
+
+    # Bazaga yozish
+    database.execute("""
+        INSERT INTO reports (user_id, branch_id, date, income, expense, remaining, sold_items, notes)
+        VALUES (:u, :b, :d, :i, :e, :r, :s, :n)
+    """, {
+        "u": user_id,
+        "b": branch_id,
+        "d": datetime.now().strftime("%Y-%m-%d"),
+        "i": income,
+        "e": expense,
+        "r": remaining_money,
+        "s": sold_text,
+        "n": remain_text
+    })
+
+    # Yakuniy xabar
+    await message.answer(
+        f"📅 Sana: {today}\n"
+        f"💰 Daromad: {income:,.0f} so‘m\n"
+        f"💸 Rashod: {expense:,.0f} so‘m\n"
+        f"💵 Qolgan: {remaining_money:,.0f} so‘m\n\n"
+        f"📦 Sotilgan mahsulotlar:\n{sold_text}\n\n"
+        f"📦 Omborda qolgan mahsulotlar:\n{remain_text}"
     )
 
-    await message.answer(text)
     await state.clear()
 # ===============================
 # ⬅️ Orqaga
