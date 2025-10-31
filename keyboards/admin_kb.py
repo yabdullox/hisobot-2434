@@ -1,6 +1,5 @@
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
 
-
 # 🧭 ADMIN PANEL — ODDIY TUGMALAR
 def get_admin_kb():
     keyboard = [
@@ -26,6 +25,15 @@ def get_admin_kb():
         [
             KeyboardButton(text="💰 Jarima/Bonus yozish"),
             KeyboardButton(text="💰 Bonus/Jarimalar ro‘yxati")
+        ],
+
+        # 📦 OMBOR VA HISOBOTLAR (YANGI QO‘SHILDI)
+        [
+            KeyboardButton(text="📦 Ombor boshqaruvi"),
+            KeyboardButton(text="🧾 Bugungi hisobotlar")
+        ],
+        [
+            KeyboardButton(text="📊 Hisobotlar tarixi")
         ],
 
         # 💬 MUAMMOLAR BO‘LIMI
