@@ -416,7 +416,7 @@ async def start_daily_report(message: types.Message, state: FSMContext):
 
 
 # 💰 Savdo summasi
-@router.message(ReportFSM.waiting_for_sale)
+@router.message(ReportState.product_loop)
 async def get_sale(message: types.Message, state: FSMContext):
     try:
         sale = int(message.text.replace(" ", ""))
