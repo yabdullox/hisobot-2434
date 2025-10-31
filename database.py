@@ -281,7 +281,22 @@ def list_notes(telegram_id: int):
     except Exception as e:
         logging.error(f"⚠️ list_notes error: {e}")
         return []
-
+def get_all_products():
+    con = get_conn()
+    cur = con.cursor()
+    cur.execute("SELECT id, name, quantity, unit, price FROM products ORDER BY id")
+    rows = cur.fetchall()
+    res = []
+    for r in rows:
+        res.append({
+            "id": r["id"],
+            "name": r["name"],
+            "quantity": float(r["quantity"]),
+            "unit": r["unit"],
+            "price": float(r["price"]) if r["price"] is not None else 0
+        })
+    con.close()
+    return res
 # ===============================
 # 🚀 Ishga tushirish testi
 # ===============================
