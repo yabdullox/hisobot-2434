@@ -3,6 +3,7 @@ from aiogram.types import Message
 from aiogram.filters import StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
+from aiogram.fsm.context import FSMContext
 from datetime import datetime, date, time
 from config import SUPERADMIN_ID, ADMIN_ID
 import pytz
@@ -21,15 +22,11 @@ class ProblemFSM(StatesGroup):
     waiting_description = State()
     waiting_photo = State()
     
-
-# ====================================================
-# 🧾 BUGUNGI HISOBOT FSM
-# ====================================================
-class ReportFSM(StatesGroup):
-    waiting_for_sale = State()
-    waiting_for_expense = State()
-    waiting_for_balance = State()
-    confirm_report = State()
+class ReportState(StatesGroup):
+    income = State()
+    expense = State()
+    sales = State()
+    confirm = State()
 
 
 
@@ -111,58 +108,55 @@ async def finish_work(message: Message):
         parse_mode="HTML"
     )
 
+# ===============================
+# 🧾 Bugungi hisobotni yuborish
+# ===============================
 
-# ===============================
-# 🧾 Bugungi hisobot
-# ===============================
+
 @router.message(F.text == "🧾 Bugungi hisobotni yuborish")
-async def ask_report_text(message: Message, state: FSMContext):
-    await message.answer("✍️ Hisobotingizni matn shaklida yuboring:")
-    await state.set_state(ReportState.waiting_for_report)
+async def start_report(message: types.Message, state: FSMContext):
+    await message.answer("💰 Bugungi daromadni kiriting:")
+    await state.set_state(ReportState.income)
 
+@router.message(ReportState.income)
+async def get_income(message: types.Message, state: FSMContext):
+    await state.update_data(income=int(message.text))
+    await message.answer("💸 Bugungi rashodni kiriting:")
+    await state.set_state(ReportState.expense)
 
-@router.message(StateFilter(ReportState.waiting_for_report))
-async def receive_report(message: Message, state: FSMContext):
-    user_id = message.from_user.id
-    text = message.text
-    now = datetime.now()
+@router.message(ReportState.expense)
+async def get_expense(message: types.Message, state: FSMContext):
+    await state.update_data(expense=int(message.text))
+    await message.answer("🏪 Endi sotilgan mahsulotlarni kiriting (masalan: johori 100):")
+    await state.set_state(ReportState.sales)
 
-    user = database.fetchone("SELECT full_name, branch_id FROM users WHERE telegram_id=:tid", {"tid": user_id})
-    if not user:
-        await message.answer("⚠️ Siz ro‘yxatdan o‘tmagansiz.")
+@router.message(ReportState.sales)
+async def get_sales(message: types.Message, state: FSMContext):
+    # bu joyda ombordagi miqdorni kamaytirish kiritiladi
+    await state.update_data(sales=message.text)
+    await message.answer("✅ Hisobotni tasdiqlaysizmi? (ha/yo‘q)")
+    await state.set_state(ReportState.confirm)
+
+@router.message(ReportState.confirm)
+async def confirm_report(message: types.Message, state: FSMContext):
+    if message.text.lower() != "ha":
+        await message.answer("❌ Hisobot bekor qilindi.")
+        await state.clear()
         return
 
-    date_str = now.strftime("%Y-%m-%d")
-    time_str = now.strftime("%H:%M:%S")
+    data = await state.get_data()
+    today = datetime.now().strftime("%d.%m.%Y")
 
-    # ✅ hisobotni saqlab qo'yamiz (filial bilan)
-    database.execute("""
-        UPDATE reports 
-        SET text=:t 
-        WHERE user_id=:u AND date=:d
-    """, {"t": text, "u": user_id, "d": date_str})
-
-    report_message = (
-        f"🧾 <b>Yangi ishchi hisobot!</b>\n\n"
-        f"👷 Ishchi: <b>{user['full_name']}</b>\n"
-        f"🏢 Filial ID: <b>{user['branch_id']}</b>\n"
-        f"🆔 Telegram ID: <code>{user_id}</code>\n\n"
-        f"📅 Sana: <b>{date_str}</b>\n"
-        f"🕘 Vaqt: <b>{time_str}</b>\n\n"
-        f"🧾 Hisobot matni:\n{text}"
+    text = (
+        f"📅 Sana: {today}\n\n"
+        f"💰 Daromad: {data['income']} so‘m\n"
+        f"💸 Rashod: {data['expense']} so‘m\n"
+        f"🏪 Sotilgan: {data['sales']}\n"
+        f"💵 Qolgan pul: {data['income'] - data['expense']} so‘m"
     )
 
-    admins = [int(x.strip()) for x in os.getenv("SUPERADMIN_ID", str(SUPERADMIN_ID)).split(",")]
-    for admin_id in admins:
-        try:
-            await message.bot.send_message(admin_id, report_message, parse_mode="HTML")
-        except Exception as e:
-            print(f"⚠️ Hisobot yuborishda xato: {e}")
-
-    await message.answer("✅ Hisobotingiz yuborildi, rahmat!", parse_mode="HTML")
+    await message.answer(text)
     await state.clear()
-
-
 # ===============================
 # ⬅️ Orqaga
 # ===============================
