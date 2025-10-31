@@ -1,6 +1,6 @@
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 
-# 👷 ISHCHI ASOSIY MENYUSI (keraksiz tugmalar olib tashlangan)
+# 👷 ISHCHI ASOSIY MENYUSI
 def get_worker_kb():
     kb = [
         [
@@ -24,6 +24,24 @@ def get_worker_kb():
     return ReplyKeyboardMarkup(
         keyboard=kb,
         resize_keyboard=True,
-        input_field_placeholder="Tanlang 👇",
-        one_time_keyboard=False
+        input_field_placeholder="Tanlang 👇"
+    )
+
+
+# 💰 BONUS / JARIMA BO‘LIMI — 🔹 SHU YO‘Q BO‘LGANI SABABLI XATO BO‘LGAN
+def get_bonus_kb():
+    kb = [
+        [
+            KeyboardButton(text="📅 Bugungi"),
+            KeyboardButton(text="📊 Umumiy")
+        ],
+        [
+            KeyboardButton(text="⬅️ Orqaga")
+        ]
+    ]
+
+    return ReplyKeyboardMarkup(
+        keyboard=kb,
+        resize_keyboard=True,
+        input_field_placeholder="Bonus / Jarima bo‘limini tanlang 👇"
     )
