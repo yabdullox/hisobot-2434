@@ -9,47 +9,112 @@ load_dotenv()
 
 DATABASE_URL = os.getenv("DATABASE_URL")
 
+if not DATABASE_URL:
+    raise RuntimeError("❌ DATABASE_URL env faylda ko‘rsatilmagan!")
+
 # PostgreSQL ulanish
 engine: Engine = create_engine(DATABASE_URL, echo=False, pool_pre_ping=True)
 
-
 # ===============================
-# 🔹 Baza bilan bog‘lanishni test qiladi
+# 🔹 BAZANI TAYYORLASH
 # ===============================
 def init_db():
-    """Baza bilan bog‘lanishni test qiladi va kerakli jadvallarni yaratadi."""
+    """Barcha kerakli jadvallarni yaratadi (agar mavjud bo‘lmasa)."""
     try:
         with engine.begin() as conn:
-            # Oddiy test
             conn.execute(text("SELECT 1"))
 
-            # NOTES jadvali
+            # Filiallar
             conn.execute(text("""
-                CREATE TABLE IF NOT EXISTS notes (
-                    id BIGSERIAL PRIMARY KEY,
-                    telegram_id BIGINT NOT NULL,
-                    text TEXT NOT NULL,
-                    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
-                )
+            CREATE TABLE IF NOT EXISTS branches (
+                id SERIAL PRIMARY KEY,
+                name VARCHAR(255) NOT NULL
+            );
             """))
 
-            # ADMIN ↔ BRANCH jadvali
+            # Foydalanuvchilar
             conn.execute(text("""
-                CREATE TABLE IF NOT EXISTS admin_branches (
-                    id SERIAL PRIMARY KEY,
-                    admin_id BIGINT NOT NULL,
-                    branch_id INTEGER NOT NULL,
-                    UNIQUE (admin_id, branch_id)
-                )
+            CREATE TABLE IF NOT EXISTS users (
+                id SERIAL PRIMARY KEY,
+                telegram_id BIGINT UNIQUE,
+                full_name VARCHAR(255),
+                role VARCHAR(50),
+                branch_id INT REFERENCES branches(id),
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
             """))
 
-        logging.info("✅ Database connected and verified successfully.")
+            # Ombor (mahsulotlar)
+            conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS warehouse (
+                id SERIAL PRIMARY KEY,
+                branch_id INT REFERENCES branches(id),
+                product_name VARCHAR(255) NOT NULL,
+                quantity NUMERIC DEFAULT 0,
+                unit VARCHAR(20),
+                price NUMERIC DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+            """))
+
+            # Sotilgan mahsulotlar
+            conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS sold_products (
+                id SERIAL PRIMARY KEY,
+                user_id BIGINT REFERENCES users(telegram_id),
+                branch_id INT REFERENCES branches(id),
+                product_id INT REFERENCES warehouse(id),
+                amount NUMERIC,
+                unit VARCHAR(20),
+                price NUMERIC,
+                sold_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+            """))
+
+            # Hisobotlar
+            conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS reports (
+                id SERIAL PRIMARY KEY,
+                user_id BIGINT REFERENCES users(telegram_id),
+                branch_id INT REFERENCES branches(id),
+                date DATE,
+                income NUMERIC,
+                expense NUMERIC,
+                remaining NUMERIC,
+                sold_items TEXT,
+                notes TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+            """))
+
+            # Admin ↔ Filial bog‘lanmasi
+            conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS admin_branches (
+                id SERIAL PRIMARY KEY,
+                admin_id BIGINT NOT NULL,
+                branch_id INT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE (admin_id, branch_id)
+            );
+            """))
+
+            # Eslatmalar (notes)
+            conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS notes (
+                id BIGSERIAL PRIMARY KEY,
+                telegram_id BIGINT NOT NULL,
+                text TEXT NOT NULL,
+                created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+            );
+            """))
+
+        logging.info("✅ Database connected and all tables initialized successfully.")
+
     except Exception as e:
         logging.error(f"❌ Database initialization failed: {e}")
 
-
 # ===============================
-# 🔹 Ma’lumot olish — bitta natija
+# 🔹 ODDIY SQL FUNKSIYALAR
 # ===============================
 def fetchone(query: str, params: dict = None):
     try:
@@ -62,9 +127,6 @@ def fetchone(query: str, params: dict = None):
         return None
 
 
-# ===============================
-# 🔹 Ma’lumot olish — ko‘p natija
-# ===============================
 def fetchall(query: str, params: dict = None):
     try:
         with engine.connect() as conn:
@@ -76,9 +138,6 @@ def fetchall(query: str, params: dict = None):
         return []
 
 
-# ===============================
-# 🔹 Ma’lumot qo‘shish / o‘chirish / yangilash
-# ===============================
 def execute(query: str, params: dict = None):
     try:
         with engine.begin() as conn:
@@ -87,9 +146,6 @@ def execute(query: str, params: dict = None):
         logging.error(f"⚠️ execute error: {e}")
 
 
-# ===============================
-# 🔹 ID yoki qaytuvchi qiymat olish uchun
-# ===============================
 def execute_returning(query: str, params: dict = None):
     try:
         with engine.begin() as conn:
@@ -100,16 +156,11 @@ def execute_returning(query: str, params: dict = None):
         logging.error(f"⚠️ execute_returning error: {e}")
         return None
 
-
 # ===============================
-# 🔹 Adminni filialga bog‘lash (maks. 5 ta limit)
+# 🔹 ADMIN ↔ FILIAL FUNKSIYALARI
 # ===============================
 def add_admin_to_branch(admin_id: int, branch_id: int):
-    """Adminni filialga qo‘shadi (maksimal 5 ta)."""
-    count = fetchone(
-        "SELECT COUNT(*) AS c FROM admin_branches WHERE admin_id=:a",
-        {"a": admin_id}
-    )
+    count = fetchone("SELECT COUNT(*) AS c FROM admin_branches WHERE admin_id=:a", {"a": admin_id})
     if count and count["c"] >= 5:
         raise Exception("❌ Bu admin allaqachon 5 ta filialga biriktirilgan.")
 
@@ -120,11 +171,7 @@ def add_admin_to_branch(admin_id: int, branch_id: int):
     """, {"a": admin_id, "b": branch_id})
 
 
-# ===============================
-# 🔹 Adminning filiallari ro‘yxatini olish
-# ===============================
 def get_admin_branches(admin_id: int):
-    """Admin qaysi filiallarga biriktirilganini qaytaradi."""
     return fetchall("""
         SELECT b.id, b.name
         FROM admin_branches ab
@@ -132,42 +179,9 @@ def get_admin_branches(admin_id: int):
         WHERE ab.admin_id = :aid
     """, {"aid": admin_id})
 
-def init_db():
-    """Baza bilan bog‘lanishni test qiladi va kerakli jadvallarni yaratadi."""
-    try:
-        with engine.begin() as conn:
-            # Baza mavjudligini tekshiramiz
-            conn.execute(text("SELECT 1"))
-
-            # 🧱 Jadval: admin_branches
-            conn.execute(text("""
-            CREATE TABLE IF NOT EXISTS admin_branches (
-                id SERIAL PRIMARY KEY,
-                admin_id BIGINT NOT NULL,
-                branch_id INTEGER NOT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            );
-            """))
-
-        logging.info("✅ Database connection successful and tables checked.")
-    except Exception as e:
-        logging.error(f"❌ Database initialization failed: {e}")
 # ===============================
-# 🔹 Notes jadvalini yaratish (alohida chaqirish mumkin)
+# 🔹 OMBOR FUNKSIYALARI
 # ===============================
-def create_notes_table():
-    query = """
-    CREATE TABLE IF NOT EXISTS notes (
-        id BIGSERIAL PRIMARY KEY,
-        telegram_id BIGINT NOT NULL,
-        text TEXT NOT NULL,
-        created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
-    );
-    """
-    execute(query)
-    logging.info("✅ Notes table checked or created successfully.")
-
-# --- pastki qismga yoki qulay joyga qo'shing ---
 def add_product_to_warehouse(branch_id: int, product_name: str, quantity, unit: str = "dona", price: int = 0):
     try:
         execute("""
@@ -179,6 +193,7 @@ def add_product_to_warehouse(branch_id: int, product_name: str, quantity, unit: 
         logging.error(f"⚠️ add_product_to_warehouse error: {e}")
         return False
 
+
 def remove_product_from_warehouse(product_id: int):
     try:
         execute("DELETE FROM warehouse WHERE id=:id", {"id": product_id})
@@ -187,44 +202,51 @@ def remove_product_from_warehouse(product_id: int):
         logging.error(f"⚠️ remove_product_from_warehouse error: {e}")
         return False
 
+
 def list_products_by_branch(branch_id: int):
     try:
-        return fetchall("SELECT id, product_name, quantity, unit, price FROM warehouse WHERE branch_id=:b ORDER BY id", {"b": branch_id})
+        return fetchall("""
+            SELECT id, product_name, quantity, unit, price
+            FROM warehouse
+            WHERE branch_id=:b
+            ORDER BY id
+        """, {"b": branch_id})
     except Exception as e:
         logging.error(f"⚠️ list_products_by_branch error: {e}")
         return []
 
+
 def get_product(product_id: int):
     try:
-        return fetchone("SELECT id, product_name, quantity, unit, price, branch_id FROM warehouse WHERE id=:id", {"id": product_id})
+        return fetchone("""
+            SELECT id, product_name, quantity, unit, price, branch_id
+            FROM warehouse
+            WHERE id=:id
+        """, {"id": product_id})
     except Exception as e:
         logging.error(f"⚠️ get_product error: {e}")
         return None
 
+
 def sell_product(user_id: int, branch_id: int, product_id: int, amount, unit: str = None, price: int = None):
     """
-    - amount: numeric (kg/dona)
-    - unit, price optional (if None, use product defaults)
-    This function:
-      1) reduces quantity in warehouse
-      2) inserts row into sold_products
-      3) returns True/False
+    Ombordan mahsulotni sotish:
+    1️⃣ Ombordagi miqdorni kamaytiradi
+    2️⃣ Sotilgan mahsulotlar jadvaliga yozadi
     """
     try:
-        # get product
         prod = get_product(product_id)
         if not prod:
             raise Exception("Mahsulot topilmadi")
+
         cur_qty = float(prod["quantity"] or 0)
         if float(amount) > cur_qty:
-            # allow negative? here we block
-            raise Exception("Omborda yetarli miqdor yo'q")
+            raise Exception("Omborda yetarli mahsulot yo‘q")
+
         new_qty = cur_qty - float(amount)
 
-        # update warehouse
         execute("UPDATE warehouse SET quantity=:q WHERE id=:id", {"q": new_qty, "id": product_id})
 
-        # use provided unit/price or product defaults
         unit_use = unit or prod.get("unit")
         price_use = price if price is not None else prod.get("price", 0)
 
@@ -239,9 +261,27 @@ def sell_product(user_id: int, branch_id: int, product_id: int, amount, unit: st
         return False
 
 # ===============================
-# 🔹 Barcha jadvallarni ishga tushirish
+# 🔹 Eslatmalar (NOTES)
+# ===============================
+def add_note(telegram_id: int, text: str):
+    try:
+        execute("INSERT INTO notes (telegram_id, text) VALUES (:t, :txt)", {"t": telegram_id, "txt": text})
+        return True
+    except Exception as e:
+        logging.error(f"⚠️ add_note error: {e}")
+        return False
+
+
+def list_notes(telegram_id: int):
+    try:
+        return fetchall("SELECT id, text, created_at FROM notes WHERE telegram_id=:t ORDER BY id DESC", {"t": telegram_id})
+    except Exception as e:
+        logging.error(f"⚠️ list_notes error: {e}")
+        return []
+
+# ===============================
+# 🚀 Ishga tushirish testi
 # ===============================
 if __name__ == "__main__":
     init_db()
-    create_notes_table()
-    print("✅ Database and tables initialized successfully.")
+    print("✅ Database and all tables initialized successfully.")
