@@ -272,7 +272,26 @@ async def back_to_worker_menu(message: types.Message):
         "🏠 Asosiy menyuga qaytdingiz.",
         reply_markup=get_worker_kb()
     )
+# 📋 Ombor holati — ishchi tugmasi uchun funksiya
+@router.message(F.text == "📋 Ombor holati")
+async def show_warehouse(message: types.Message):
+    try:
+        products = database.get_all_products()
+    except Exception as e:
+        await message.answer("❌ Ombor ma'lumotlarini olishda xatolik yuz berdi.")
+        print(f"[XATO] Ombor holati: {e}")
+        return
 
+    if not products:
+        await message.answer("📦 Omborda hozircha mahsulotlar yo‘q.")
+        return
+
+    text = "📋 <b>Ombordagi mahsulotlar holati:</b>\n\n"
+    for p in products:
+        qty = int(p["quantity"]) if float(p["quantity"]).is_integer() else p["quantity"]
+        text += f"• {p['name']} — {qty} {p['unit']}\n"
+
+    await message.answer(text, parse_mode="HTML")
 # ===============================
 # 📓 Eslatma (faqat worker uchun)
 # ===============================
