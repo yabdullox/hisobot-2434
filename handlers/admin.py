@@ -31,6 +31,12 @@ class AddBranchFSM(StatesGroup):
 class DelBranchFSM(StatesGroup):
     branch_id = State()
 
+class AddProductFSM(StatesGroup):
+    waiting_name = State()
+    waiting_quantity = State()
+    waiting_unit = State()
+    waiting_price = State()
+    confirm = State()
 
 
 
@@ -510,6 +516,124 @@ async def open_branch_warehouse(callback: types.CallbackQuery):
 async def cancel_warehouse_menu(callback: types.CallbackQuery):
     await callback.message.edit_text("❌ Ombor boshqaruvi bekor qilindi.")
 
+# =====================================================
+# ➕ Mahsulot qo‘shish
+# =====================================================
+@router.callback_query(F.data.startswith("add_product:"))
+async def add_product_start(callback: types.CallbackQuery, state: FSMContext):
+    branch_id = int(callback.data.split(":")[1])
+    await state.update_data(branch_id=branch_id)
+    await callback.message.answer("🆕 Mahsulot nomini kiriting:")
+    await state.set_state(AddProductFSM.waiting_name)
+
+
+@router.message(AddProductFSM.waiting_name)
+async def add_product_name(message: types.Message, state: FSMContext):
+    await state.update_data(name=message.text)
+    await message.answer("📦 Mahsulot miqdorini kiriting:")
+    await state.set_state(AddProductFSM.waiting_quantity)
+
+
+@router.message(AddProductFSM.waiting_quantity)
+async def add_product_quantity(message: types.Message, state: FSMContext):
+    try:
+        qty = float(message.text)
+    except ValueError:
+        await message.answer("❗️Faqat raqam kiriting.")
+        return
+    await state.update_data(quantity=qty)
+    await message.answer("📏 Mahsulot birligini kiriting (masalan: dona, kg, litr):")
+    await state.set_state(AddProductFSM.waiting_unit)
+
+
+@router.message(AddProductFSM.waiting_unit)
+async def add_product_unit(message: types.Message, state: FSMContext):
+    await state.update_data(unit=message.text)
+    await message.answer("💰 Mahsulot narxini kiriting (so‘mda):")
+    await state.set_state(AddProductFSM.waiting_price)
+
+
+@router.message(AddProductFSM.waiting_price)
+async def add_product_price(message: types.Message, state: FSMContext):
+    try:
+        price = float(message.text)
+    except ValueError:
+        await message.answer("❗️Faqat raqam kiriting.")
+        return
+
+    data = await state.get_data()
+    database.execute("""
+        INSERT INTO warehouse (branch_id, product_name, quantity, unit, price)
+        VALUES (:b, :n, :q, :u, :p)
+    """, {
+        "b": data["branch_id"],
+        "n": data["name"],
+        "q": data["quantity"],
+        "u": data["unit"],
+        "p": price
+    })
+
+    await message.answer(f"✅ Mahsulot qo‘shildi:\n"
+                         f"📦 {data['name']}\n"
+                         f"📏 {data['quantity']} {data['unit']}\n"
+                         f"💰 {price:,.0f} so‘m")
+    await state.clear()
+
+
+# =====================================================
+# ➖ Mahsulot o‘chirish
+# =====================================================
+@router.callback_query(F.data.startswith("delete_product:"))
+async def delete_product(callback: types.CallbackQuery):
+    branch_id = int(callback.data.split(":")[1])
+    products = database.fetchall("SELECT id, product_name FROM warehouse WHERE branch_id=:b", {"b": branch_id})
+
+    if not products:
+        await callback.message.answer("📦 Omborda mahsulot yo‘q.")
+        return
+
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=p["product_name"], callback_data=f"confirm_delete:{p['id']}")] for p in products
+    ] + [[InlineKeyboardButton(text="⬅️ Orqaga", callback_data=f"open_branch_warehouse:{branch_id}")]])
+
+    await callback.message.edit_text("❌ O‘chirish uchun mahsulot tanlang:", reply_markup=kb)
+
+
+@router.callback_query(F.data.startswith("confirm_delete:"))
+async def confirm_delete(callback: types.CallbackQuery):
+    pid = int(callback.data.split(":")[1])
+    product = database.fetchone("SELECT product_name FROM warehouse WHERE id=:id", {"id": pid})
+
+    if not product:
+        await callback.answer("⚠️ Mahsulot topilmadi.", show_alert=True)
+        return
+
+    database.execute("DELETE FROM warehouse WHERE id=:id", {"id": pid})
+    await callback.message.edit_text(f"🗑 {product['product_name']} o‘chirildi.")
+
+
+# =====================================================
+# 👁 Barcha mahsulotlarni ko‘rish
+# =====================================================
+@router.callback_query(F.data.startswith("show_products:"))
+async def show_products(callback: types.CallbackQuery):
+    branch_id = int(callback.data.split(":")[1])
+    products = database.fetchall("""
+        SELECT product_name, quantity, unit, price
+        FROM warehouse
+        WHERE branch_id=:b
+        ORDER BY id
+    """, {"b": branch_id})
+
+    if not products:
+        await callback.message.edit_text("📦 Omborda mahsulotlar yo‘q.")
+        return
+
+    text = "📋 <b>Filial omboridagi mahsulotlar:</b>\n\n"
+    for p in products:
+        text += f"• {p['product_name']} — {p['quantity']} {p['unit']} ({p['price']:,.0f} so‘m)\n"
+
+    await callback.message.edit_text(text, parse_mode="HTML")
 
 # ===============================
 # ⬅️ Orqaga filiallar ro‘yxatiga qaytish
