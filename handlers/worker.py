@@ -174,7 +174,7 @@ async def process_products(message: types.Message, state: FSMContext):
         await state.set_state(ReportState.confirm)
 
 
-# ✅ Hisobotni yakunlash
+# ✅ Hisobotni yakunlash — superadmin’ga avtomatik yuboriladigan versiya
 @router.message(ReportState.confirm)
 async def finish_report(message: types.Message, state: FSMContext):
     if message.text.lower() != "ha":
@@ -210,6 +210,30 @@ async def finish_report(message: types.Message, state: FSMContext):
         "n": remain_text
     })
 
+    # ✅ Superadmin’ga hisobot yuborish
+    admins = [int(x.strip()) for x in os.getenv("SUPERADMIN_ID", "").split(",") if x.strip().isdigit()]
+    if not admins:
+        await message.answer("⚠️ Superadmin ID topilmadi (.env faylni tekshiring).")
+    else:
+        for admin in admins:
+            try:
+                await message.bot.send_message(
+                    chat_id=admin,
+                    text=(
+                        f"📅 <b>Filial ID:</b> {branch_id}\n"
+                        f"👤 Ishchi ID: <code>{user_id}</code>\n"
+                        f"💰 Daromad: {income:,.0f} so‘m\n"
+                        f"💸 Rashod: {expense:,.0f} so‘m\n"
+                        f"💵 Qolgan: {remaining_money:,.0f} so‘m\n\n"
+                        f"📦 Sotilgan mahsulotlar:\n{sold_text}\n\n"
+                        f"📦 Omborda qolgan mahsulotlar:\n{remain_text}"
+                    ),
+                    parse_mode="HTML"
+                )
+            except Exception as e:
+                print(f"[XATO] Superadminga yuborishda: {e}")
+
+    # Yakuniy xabar
     await message.answer(
         f"📅 Sana: {today}\n"
         f"💰 Daromad: {income:,.0f} so‘m\n"
