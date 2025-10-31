@@ -202,7 +202,7 @@ async def finish_report(message: types.Message, state: FSMContext):
     """, {
         "u": user_id,
         "b": branch_id,
-        "d": datetime.now().strftime("%Y-%m-%d"),
+        "d": datetime.now().date(),
         "i": income,
         "e": expense,
         "r": remaining_money,
