@@ -262,14 +262,15 @@ def sell_product(user_id: int, branch_id: int, product_id: int, amount, unit: st
     except Exception as e:
         logging.error(f"⚠️ sell_product error: {e}")
         return False
-def get_all_products():
-    """Barcha ombor mahsulotlarini qaytaradi (superadmin/admin ko‘rishi uchun)."""
+def get_all_products(branch_id: int):
+    """Ishchining filialiga tegishli ombor mahsulotlarini qaytaradi."""
     try:
         rows = fetchall("""
             SELECT id, product_name AS name, quantity, unit, price
             FROM warehouse
+            WHERE branch_id = :b
             ORDER BY id
-        """)
+        """, {"b": branch_id})
         return rows
     except Exception as e:
         logging.error(f"⚠️ get_all_products error: {e}")
