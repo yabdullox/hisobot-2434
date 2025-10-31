@@ -7,7 +7,8 @@ from aiogram import Bot, Dispatcher
 from aiogram.types import BotCommand
 from dotenv import load_dotenv
 from aiohttp import web
-
+from aiogram import Bot, Dispatcher
+from handlers import worker
 # === Fayllar va konfiguratsiya ===
 from database import init_db
 from handlers import start as start_h, superadmin as superadmin_h, admin as admin_h, worker as worker_h
@@ -27,6 +28,7 @@ dp.include_router(admin_h.router)
 dp.include_router(admin_branch_link_h.router)
 dp.include_router(worker_h.router)
 
+dp.include_router(worker.router)
 
 async def check_conflict():
     """Agar boshqa instansiya ishlayotgan bo‘lsa aniqlaydi."""
