@@ -444,9 +444,17 @@ async def cancel_problems(callback: types.CallbackQuery):
 # ===============================
 @router.message(F.text == "📦 Ombor boshqaruvi")
 async def open_warehouse_menu(message: types.Message):
-    admin_id = message.from_user.id
+    tg_id = message.from_user.id
 
-    # ✅ Admin qaysi filiallarga biriktirilganligini tekshiramiz
+    # 🧩 Avval users jadvalidan ichki user.id ni olamiz
+    user = database.fetchone("SELECT id FROM users WHERE telegram_id=:tid", {"tid": tg_id})
+    if not user:
+        await message.answer("⚠️ Siz admin sifatida tizimda mavjud emassiz.")
+        return
+
+    admin_id = user["id"]
+
+    # ✅ Endi shu ID orqali filiallarni olib kelamiz
     branches = database.fetchall("""
         SELECT b.id, b.name
         FROM admin_branches ab
@@ -469,8 +477,6 @@ async def open_warehouse_menu(message: types.Message):
     )
 
     await message.answer("🏢 Qaysi filial omborini boshqarasiz?", reply_markup=keyboard)
-
-
 # ===============================
 # 📋 Tanlangan filial ombori menyusi
 # ===============================
