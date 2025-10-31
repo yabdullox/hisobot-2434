@@ -179,87 +179,202 @@ def get_admin_branches(admin_id: int):
         WHERE ab.admin_id = :aid
     """, {"aid": admin_id})
 
-# ===============================
-# 🔹 OMBOR FUNKSIYALARI
-# ===============================
-def add_product_to_warehouse(branch_id: int, product_name: str, quantity, unit: str = "dona", price: int = 0):
-    try:
-        execute("""
-            INSERT INTO warehouse (branch_id, product_name, quantity, unit, price)
-            VALUES (:br, :pn, :q, :u, :p)
-        """, {"br": branch_id, "pn": product_name, "q": quantity, "u": unit, "p": price})
-        return True
-    except Exception as e:
-        logging.error(f"⚠️ add_product_to_warehouse error: {e}")
-        return False
+# # ===============================
+# # 🔹 OMBOR FUNKSIYALARI
+# # ===============================
+# def add_product_to_warehouse(branch_id: int, product_name: str, quantity, unit: str = "dona", price: int = 0):
+#     try:
+#         execute("""
+#             INSERT INTO warehouse (branch_id, product_name, quantity, unit, price)
+#             VALUES (:br, :pn, :q, :u, :p)
+#         """, {"br": branch_id, "pn": product_name, "q": quantity, "u": unit, "p": price})
+#         return True
+#     except Exception as e:
+#         logging.error(f"⚠️ add_product_to_warehouse error: {e}")
+#         return False
 
 
-def remove_product_from_warehouse(product_id: int):
-    try:
-        execute("DELETE FROM warehouse WHERE id=:id", {"id": product_id})
-        return True
-    except Exception as e:
-        logging.error(f"⚠️ remove_product_from_warehouse error: {e}")
-        return False
+# def remove_product_from_warehouse(product_id: int):
+#     try:
+#         execute("DELETE FROM warehouse WHERE id=:id", {"id": product_id})
+#         return True
+#     except Exception as e:
+#         logging.error(f"⚠️ remove_product_from_warehouse error: {e}")
+#         return False
 
 
-def list_products_by_branch(branch_id: int):
-    try:
-        return fetchall("""
-            SELECT id, product_name, quantity, unit, price
-            FROM warehouse
-            WHERE branch_id=:b
-            ORDER BY id
-        """, {"b": branch_id})
-    except Exception as e:
-        logging.error(f"⚠️ list_products_by_branch error: {e}")
-        return []
+# def list_products_by_branch(branch_id: int):
+#     try:
+#         return fetchall("""
+#             SELECT id, product_name, quantity, unit, price
+#             FROM warehouse
+#             WHERE branch_id=:b
+#             ORDER BY id
+#         """, {"b": branch_id})
+#     except Exception as e:
+#         logging.error(f"⚠️ list_products_by_branch error: {e}")
+#         return []
 
 
-def get_product(product_id: int):
-    try:
-        return fetchone("""
-            SELECT id, product_name, quantity, unit, price, branch_id
-            FROM warehouse
-            WHERE id=:id
-        """, {"id": product_id})
-    except Exception as e:
-        logging.error(f"⚠️ get_product error: {e}")
-        return None
+# def get_product(product_id: int):
+#     try:
+#         return fetchone("""
+#             SELECT id, product_name, quantity, unit, price, branch_id
+#             FROM warehouse
+#             WHERE id=:id
+#         """, {"id": product_id})
+#     except Exception as e:
+#         logging.error(f"⚠️ get_product error: {e}")
+#         return None
 
 
-def sell_product(user_id: int, branch_id: int, product_id: int, amount, unit: str = None, price: int = None):
+# def sell_product(user_id: int, branch_id: int, product_id: int, amount, unit: str = None, price: int = None):
+#     """
+#     Ombordan mahsulotni sotish:
+#     1️⃣ Ombordagi miqdorni kamaytiradi
+#     2️⃣ Sotilgan mahsulotlar jadvaliga yozadi
+#     """
+#     try:
+#         prod = get_product(product_id)
+#         if not prod:
+#             raise Exception("Mahsulot topilmadi")
+
+#         cur_qty = float(prod["quantity"] or 0)
+#         if float(amount) > cur_qty:
+#             raise Exception("Omborda yetarli mahsulot yo‘q")
+
+#         new_qty = cur_qty - float(amount)
+
+#         execute("UPDATE warehouse SET quantity=:q WHERE id=:id", {"q": new_qty, "id": product_id})
+
+#         unit_use = unit or prod.get("unit")
+#         price_use = price if price is not None else prod.get("price", 0)
+
+#         execute("""
+#             INSERT INTO sold_products (user_id, branch_id, product_id, amount, unit, price)
+#             VALUES (:u, :b, :pid, :amt, :unit, :price)
+#         """, {"u": user_id, "b": branch_id, "pid": product_id, "amt": amount, "unit": unit_use, "price": price_use})
+
+#         return True
+#     except Exception as e:
+#         logging.error(f"⚠️ sell_product error: {e}")
+#         return False
+
+def get_conn():
+    con = sqlite3.connect(DB_PATH)
+    con.row_factory = sqlite3.Row
+    return con
+
+def init_db():
     """
-    Ombordan mahsulotni sotish:
-    1️⃣ Ombordagi miqdorni kamaytiradi
-    2️⃣ Sotilgan mahsulotlar jadvaliga yozadi
+    Jadval yaratadi agar mavjud bo'lmasa.
+    products: id, name, quantity, unit, price, branch_id
+    reports: id, date, branch, income, expense, balance
+    sold_products: id, report_id, product_name, quantity
     """
-    try:
-        prod = get_product(product_id)
-        if not prod:
-            raise Exception("Mahsulot topilmadi")
+    con = get_conn()
+    cur = con.cursor()
 
-        cur_qty = float(prod["quantity"] or 0)
-        if float(amount) > cur_qty:
-            raise Exception("Omborda yetarli mahsulot yo‘q")
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS products (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        quantity REAL NOT NULL DEFAULT 0,
+        unit TEXT DEFAULT 'dona',
+        price REAL DEFAULT 0,
+        branch_id INTEGER
+    )
+    """)
 
-        new_qty = cur_qty - float(amount)
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS reports (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        date TEXT,
+        branch TEXT,
+        income INTEGER,
+        expense INTEGER,
+        balance INTEGER
+    )
+    """)
 
-        execute("UPDATE warehouse SET quantity=:q WHERE id=:id", {"q": new_qty, "id": product_id})
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS sold_products (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        report_id INTEGER,
+        product_name TEXT,
+        quantity REAL,
+        FOREIGN KEY(report_id) REFERENCES reports(id)
+    )
+    """)
 
-        unit_use = unit or prod.get("unit")
-        price_use = price if price is not None else prod.get("price", 0)
+    con.commit()
+    con.close()
 
-        execute("""
-            INSERT INTO sold_products (user_id, branch_id, product_id, amount, unit, price)
-            VALUES (:u, :b, :pid, :amt, :unit, :price)
-        """, {"u": user_id, "b": branch_id, "pid": product_id, "amt": amount, "unit": unit_use, "price": price_use})
+def get_all_products():
+    con = get_conn()
+    cur = con.cursor()
+    cur.execute("SELECT id, name, quantity, unit, price FROM products ORDER BY id")
+    rows = cur.fetchall()
+    res = []
+    for r in rows:
+        res.append({
+            "id": r["id"],
+            "name": r["name"],
+            "quantity": float(r["quantity"]),
+            "unit": r["unit"],
+            "price": float(r["price"]) if r["price"] is not None else 0
+        })
+    con.close()
+    return res
 
-        return True
-    except Exception as e:
-        logging.error(f"⚠️ sell_product error: {e}")
-        return False
+def update_product_quantity(product_id, new_qty):
+    con = get_conn()
+    cur = con.cursor()
+    cur.execute("UPDATE products SET quantity=? WHERE id=?", (new_qty, product_id))
+    con.commit()
+    con.close()
 
+def save_report(date, branch, income, expense, balance):
+    con = get_conn()
+    cur = con.cursor()
+    cur.execute(
+        "INSERT INTO reports (date, branch, income, expense, balance) VALUES (?, ?, ?, ?, ?)",
+        (date, branch, income, expense, balance)
+    )
+    report_id = cur.lastrowid
+    con.commit()
+    con.close()
+    return report_id
+
+def save_sold_product(report_id, name, quantity):
+    con = get_conn()
+    cur = con.cursor()
+    cur.execute(
+        "INSERT INTO sold_products (report_id, product_name, quantity) VALUES (?, ?, ?)",
+        (report_id, name, quantity)
+    )
+    con.commit()
+    con.close()
+
+# Helper: add product (admin ishlatishi mumkin)
+def add_product(name, quantity=0, unit='dona', price=0.0, branch_id=None):
+    con = get_conn()
+    cur = con.cursor()
+    cur.execute(
+        "INSERT INTO products (name, quantity, unit, price, branch_id) VALUES (?, ?, ?, ?, ?)",
+        (name, quantity, unit, price, branch_id)
+    )
+    con.commit()
+    con.close()
+
+# Helper: get single product
+def get_product_by_id(pid):
+    con = get_conn()
+    cur = con.cursor()
+    cur.execute("SELECT id, name, quantity, unit, price FROM products WHERE id=?", (pid,))
+    r = cur.fetchone()
+    con.close()
+    return dict(r) if r else None
 # ===============================
 # 🔹 Eslatmalar (NOTES)
 # ===============================
