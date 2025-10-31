@@ -263,21 +263,17 @@ def sell_product(user_id: int, branch_id: int, product_id: int, amount, unit: st
         logging.error(f"⚠️ sell_product error: {e}")
         return False
 def get_all_products():
-    con = get_conn()
-    cur = con.cursor()
-    cur.execute("SELECT id, name, quantity, unit, price FROM products ORDER BY id")
-    rows = cur.fetchall()
-    res = []
-    for r in rows:
-        res.append({
-            "id": r["id"],
-            "name": r["name"],
-            "quantity": float(r["quantity"]),
-            "unit": r["unit"],
-            "price": float(r["price"]) if r["price"] is not None else 0
-        })
-    con.close()
-    return res
+    """Barcha ombor mahsulotlarini qaytaradi (superadmin/admin ko‘rishi uchun)."""
+    try:
+        rows = fetchall("""
+            SELECT id, product_name AS name, quantity, unit, price
+            FROM warehouse
+            ORDER BY id
+        """)
+        return rows
+    except Exception as e:
+        logging.error(f"⚠️ get_all_products error: {e}")
+        return []
 # ===============================
 # 🔹 Eslatmalar (NOTES)
 # ===============================
