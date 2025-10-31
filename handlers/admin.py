@@ -431,6 +431,43 @@ async def show_problems(callback: types.CallbackQuery):
 async def cancel_problems(callback: types.CallbackQuery):
     await callback.message.edit_text("Asosiy menyu:", reply_markup=get_admin_kb())
 
+# 📦 Ombor boshqaruvi tugmasi bosilganda
+@router.message(F.text == "📦 Ombor boshqaruvi")
+async def show_warehouse_branches(message: types.Message):
+    admin_id = message.from_user.id
+    branches = database.get_admin_branches(admin_id)
+
+    if not branches:
+        await message.answer("⚠️ Siz hali birorta filialga biriktirilmagansiz.")
+        return
+
+    await message.answer("🏢 Qaysi filial omborini boshqarasiz?", reply_markup=get_admin_branch_kb(admin_id))
+
+
+# 🏢 Filial tanlanganda
+@router.callback_query(F.data.startswith("warehouse_branch:"))
+async def open_branch_warehouse(callback: CallbackQuery):
+    branch_id = int(callback.data.split(":")[1])
+    await callback.message.edit_text(
+        f"📦 Filial ombori menyusi (ID: {branch_id}):",
+        reply_markup=get_warehouse_menu_kb(branch_id)
+    )
+
+
+# ❌ Bekor qilish
+@router.callback_query(F.data == "cancel_warehouse")
+async def cancel_warehouse(callback: CallbackQuery):
+    await callback.message.edit_text("❌ Ombor boshqaruvi bekor qilindi.")
+
+
+# ⬅️ Orqaga filial tanlash menyusiga qaytish
+@router.callback_query(F.data == "back_to_branches")
+async def back_to_branches(callback: CallbackQuery):
+    admin_id = callback.from_user.id
+    await callback.message.edit_text(
+        "🏢 Qaysi filial omborini boshqarasiz?",
+        reply_markup=get_admin_branch_kb(admin_id)
+    )
 # ===============================
 # 💰 Bonus/Jarimalar ro‘yxati
 # ===============================
