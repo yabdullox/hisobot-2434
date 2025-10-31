@@ -22,12 +22,12 @@ class ProblemFSM(StatesGroup):
     waiting_description = State()
     waiting_photo = State()
     
-class ReportState(StatesGroup):
-    income = State()
-    expense = State()
-    sales = State()
-    confirm = State()
 
+class ReportState(StatesGroup):
+    income = State()         # 💰 Daromadni kiritish
+    expense = State()        # 💸 Rashodni kiritish
+    product_loop = State()   # 📦 Ombordagi mahsulotlarni navbat bilan so‘rash
+    confirm = State()        # ✅ Hisobotni tasdiqlash
 
 
 # ===============================
