@@ -438,43 +438,97 @@ async def show_problems(callback: types.CallbackQuery):
 async def cancel_problems(callback: types.CallbackQuery):
     await callback.message.edit_text("Asosiy menyu:", reply_markup=get_admin_kb())
 
-# 📦 Ombor boshqaruvi tugmasi bosilganda
+
+# ===============================
+# 📦 Ombor boshqaruvi (filial tanlash bilan)
+# ===============================
 @router.message(F.text == "📦 Ombor boshqaruvi")
-async def show_warehouse_branches(message: types.Message):
+async def open_warehouse_menu(message: types.Message):
     admin_id = message.from_user.id
-    branches = database.get_admin_branches(admin_id)
+
+    # ✅ Admin qaysi filiallarga biriktirilganligini tekshiramiz
+    branches = database.fetchall("""
+        SELECT b.id, b.name
+        FROM admin_branches ab
+        JOIN branches b ON ab.branch_id = b.id
+        WHERE ab.admin_id = :aid
+    """, {"aid": admin_id})
 
     if not branches:
         await message.answer("⚠️ Siz hali birorta filialga biriktirilmagansiz.")
         return
 
-    await message.answer("🏢 Qaysi filial omborini boshqarasiz?", reply_markup=get_admin_branch_kb(admin_id))
+    # 🧭 Filiallar ro‘yxatini tugma shaklida chiqarish
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text=f"🏢 {b['name']}", callback_data=f"open_branch_warehouse:{b['id']}")]
+            for b in branches
+        ] + [
+            [InlineKeyboardButton(text="❌ Bekor qilish", callback_data="cancel_warehouse_menu")]
+        ]
+    )
+
+    await message.answer("🏢 Qaysi filial omborini boshqarasiz?", reply_markup=keyboard)
 
 
-# 🏢 Filial tanlanganda
-@router.callback_query(F.data.startswith("warehouse_branch:"))
-async def open_branch_warehouse(callback: CallbackQuery):
+# ===============================
+# 📋 Tanlangan filial ombori menyusi
+# ===============================
+@router.callback_query(F.data.startswith("open_branch_warehouse:"))
+async def open_branch_warehouse(callback: types.CallbackQuery):
     branch_id = int(callback.data.split(":")[1])
+
+    # 🧩 Filial nomini olish
+    branch = database.fetchone("SELECT name FROM branches WHERE id=:id", {"id": branch_id})
+    branch_name = branch["name"] if branch else "Noma’lum filial"
+
+    # 📋 Ombor menyusi
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="➕ Mahsulot qo‘shish", callback_data=f"add_product:{branch_id}")],
+        [InlineKeyboardButton(text="➖ Mahsulot o‘chirish", callback_data=f"delete_product:{branch_id}")],
+        [InlineKeyboardButton(text="👁 Barcha mahsulotlarni ko‘rish", callback_data=f"show_products:{branch_id}")],
+        [InlineKeyboardButton(text="⬅️ Orqaga", callback_data="back_to_branches")]
+    ])
+
     await callback.message.edit_text(
-        f"📦 Filial ombori menyusi (ID: {branch_id}):",
-        reply_markup=get_warehouse_menu_kb(branch_id)
+        f"📦 <b>{branch_name}</b> ombori:\nKerakli bo‘limni tanlang 👇",
+        reply_markup=keyboard,
+        parse_mode="HTML"
     )
 
 
+# ===============================
 # ❌ Bekor qilish
-@router.callback_query(F.data == "cancel_warehouse")
-async def cancel_warehouse(callback: CallbackQuery):
+# ===============================
+@router.callback_query(F.data == "cancel_warehouse_menu")
+async def cancel_warehouse_menu(callback: types.CallbackQuery):
     await callback.message.edit_text("❌ Ombor boshqaruvi bekor qilindi.")
 
 
-# ⬅️ Orqaga filial tanlash menyusiga qaytish
+# ===============================
+# ⬅️ Orqaga filiallar ro‘yxatiga qaytish
+# ===============================
 @router.callback_query(F.data == "back_to_branches")
-async def back_to_branches(callback: CallbackQuery):
+async def back_to_branches(callback: types.CallbackQuery):
     admin_id = callback.from_user.id
-    await callback.message.edit_text(
-        "🏢 Qaysi filial omborini boshqarasiz?",
-        reply_markup=get_admin_branch_kb(admin_id)
+
+    branches = database.fetchall("""
+        SELECT b.id, b.name
+        FROM admin_branches ab
+        JOIN branches b ON ab.branch_id = b.id
+        WHERE ab.admin_id = :aid
+    """, {"aid": admin_id})
+
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text=f"🏢 {b['name']}", callback_data=f"open_branch_warehouse:{b['id']}")]
+            for b in branches
+        ] + [
+            [InlineKeyboardButton(text="❌ Bekor qilish", callback_data="cancel_warehouse_menu")]
+        ]
     )
+
+    await callback.message.edit_text("🏢 Qaysi filial omborini boshqarasiz?", reply_markup=keyboard)
 # ===============================
 # 💰 Bonus/Jarimalar ro‘yxati
 # ===============================
