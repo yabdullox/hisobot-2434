@@ -6,6 +6,7 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
 from datetime import datetime, date, time
 from config import SUPERADMIN_ID, ADMIN_ID
+from aiogram.fsm.state import StatesGroup, State
 import pytz
 import database
 import os
@@ -22,13 +23,11 @@ class ProblemFSM(StatesGroup):
     waiting_description = State()
     waiting_photo = State()
     
-
-class ReportState(StatesGroup):
-    income = State()         # 💰 Daromadni kiritish
-    expense = State()        # 💸 Rashodni kiritish
-    product_loop = State()   # 📦 Ombordagi mahsulotlarni navbat bilan so‘rash
-    confirm = State()        # ✅ Hisobotni tasdiqlash
-
+class ReportFSM(StatesGroup):
+    waiting_for_income = State()      # 💰 Daromad
+    waiting_for_expense = State()     # 💸 Rashod
+    waiting_for_sale = State()        # 🏪 Mahsulotlarni ketma-ket so‘rash
+    confirm_report = State()          # ✅ Tasdiqlash
 
 # ===============================
 # 🕘 Ishni boshladim
