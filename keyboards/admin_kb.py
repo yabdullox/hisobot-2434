@@ -67,3 +67,25 @@ def get_admin_inline_actions(user_id: int):
             InlineKeyboardButton(text="⚠️ Jarima yozish", callback_data=f"fine:{user_id}")
         ]
     ])
+def get_admin_branch_kb(admin_id: int):
+    """Admin biriktirilgan filiallar ro‘yxatini chiqaradi."""
+    branches = database.get_admin_branches(admin_id)
+    buttons = []
+
+    if branches:
+        for b in branches:
+            buttons.append([InlineKeyboardButton(text=b["name"], callback_data=f"warehouse_branch:{b['id']}")])
+
+    buttons.append([InlineKeyboardButton(text="❌ Bekor qilish", callback_data="cancel_warehouse")])
+
+    return InlineKeyboardMarkup(inline_keyboard=buttons)
+
+
+def get_warehouse_menu_kb(branch_id: int):
+    """Tanlangan filial uchun ombor menyusi."""
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="➕ Mahsulot qo‘shish", callback_data=f"add_product:{branch_id}")],
+        [InlineKeyboardButton(text="➖ Mahsulot o‘chirish", callback_data=f"remove_product:{branch_id}")],
+        [InlineKeyboardButton(text="👁 Barcha mahsulotlarni ko‘rish", callback_data=f"view_products:{branch_id}")],
+        [InlineKeyboardButton(text="⬅️ Orqaga", callback_data="back_to_branches")]
+    ])
