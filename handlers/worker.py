@@ -251,24 +251,26 @@ async def finish_report(message: types.Message, state: FSMContext):
 # ===============================
 @router.message(F.text == "📋 Ombor holati")
 async def show_warehouse(message: types.Message):
-    try:
-        products = database.get_all_products()
-    except Exception as e:
-        await message.answer("❌ Ombor ma'lumotlarini olishda xatolik yuz berdi.")
-        print(f"[XATO] Ombor holati: {e}")
+    user_id = message.from_user.id
+    user = database.fetchone("SELECT branch_id FROM users WHERE telegram_id=:tid", {"tid": user_id})
+
+    if not user or not user["branch_id"]:
+        await message.answer("⚠️ Sizga filial biriktirilmagan. Admin bilan bog‘laning.")
         return
+
+    branch_id = user["branch_id"]
+    products = database.get_all_products(branch_id)
 
     if not products:
         await message.answer("📦 Omborda hozircha mahsulotlar yo‘q.")
         return
 
-    text = "📋 <b>Ombordagi mahsulotlar holati:</b>\n\n"
+    text = "📋 <b>Sizning filial omboringizdagi mahsulotlar:</b>\n\n"
     for p in products:
         qty = int(p["quantity"]) if float(p["quantity"]).is_integer() else p["quantity"]
         text += f"• {p['name']} — {qty} {p['unit']}\n"
 
     await message.answer(text, parse_mode="HTML")
-
 
 # ===============================
 # 💰 BONUS / JARIMALAR
