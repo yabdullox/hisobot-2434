@@ -1,11 +1,18 @@
+# === Asosiy kutubxonalar ===
 aiogram==3.4.1
-python-dotenv
-APScheduler
-pandas
-openpyxl
-SQLAlchemy
-psycopg2-binary
-aiohttp
-python-dateutil
-pytz
-xlsxwriter
+aiohttp==3.9.5
+python-dotenv==1.0.1
+
+# === Ma'lumotlar bazasi ===
+SQLAlchemy==2.0.23
+psycopg2-binary==2.9.9
+
+# === Jadval va vaqt boshqaruvi ===
+APScheduler==3.10.4
+python-dateutil==2.9.0.post0
+pytz==2024.1
+
+# === Excel va ma'lumotlar tahlili ===
+pandas==2.2.2
+openpyxl==3.1.5
+xlsxwriter==3.2.0
