@@ -23,11 +23,13 @@ class ProblemFSM(StatesGroup):
     waiting_description = State()
     waiting_photo = State()
     
-class ReportFSM(StatesGroup):
-    waiting_for_income = State()      # 💰 Daromad
-    waiting_for_expense = State()     # 💸 Rashod
-    waiting_for_sale = State()        # 🏪 Mahsulotlarni ketma-ket so‘rash
-    confirm_report = State()          # ✅ Tasdiqlash
+
+
+class ReportState(StatesGroup):
+    income = State()         # 💰 Daromadni kiritish
+    expense = State()        # 💸 Rashodni kiritish
+    product_loop = State()   # 🏪 Mahsulotlarni birma-bir so‘rash
+    confirm = State()        # ✅ Hisobotni tasdiqlash       # ✅ Tasdiqlash
 
 # ===============================
 # 🕘 Ishni boshladim
