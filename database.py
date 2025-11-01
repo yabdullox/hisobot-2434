@@ -293,10 +293,32 @@ def list_notes(telegram_id: int):
     except Exception as e:
         logging.error(f"⚠️ list_notes error: {e}")
         return []
+def ensure_reports_columns():
+    """reports jadvalida yangi ustunlar mavjudligini tekshiradi va yo‘q bo‘lsa qo‘shadi."""
+    columns_to_add = [
+        ("income", "NUMERIC"),
+        ("expense", "NUMERIC"),
+        ("remaining", "NUMERIC"),
+        ("sold_items", "TEXT"),
+        ("notes", "TEXT")
+    ]
+
+    try:
+        with engine.begin() as conn:
+            for col, col_type in columns_to_add:
+                conn.execute(text(f"""
+                    ALTER TABLE reports
+                    ADD COLUMN IF NOT EXISTS {col} {col_type};
+                """))
+        print("✅ reports jadvali ustunlari tekshirildi va keraklisi qo‘shildi.")
+    except Exception as e:
+        print(f"⚠️ reports ustunlarini qo‘shishda xato: {e}")
 
 # ===============================
 # 🚀 Ishga tushirish testi
 # ===============================
 if __name__ == "__main__":
     init_db()
+    ensure_reports_columns()  # 🔥 yangi qo‘shimcha
     print("✅ Database and all tables initialized successfully.")
+
