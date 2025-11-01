@@ -125,32 +125,47 @@ async def show_branch_selection(message: types.Message, state: FSMContext):
             reply_markup=kb.as_markup()
         )
 
-
 @router.callback_query(F.data.startswith("toggle_branch:"))
 async def toggle_branch(callback: types.CallbackQuery, state: FSMContext):
-    """Filial tanlanganida ✅ belgini qo‘yish yoki olib tashlash."""
+    """Filial bosilganda — ✅ belgini joyida yoqish/o‘chirish (tezkor)."""
     branch_id = int(callback.data.split(":")[1])
     data = await state.get_data()
     selected = set(data.get("selected_branches", []))
 
+    # Tanlovni o‘zgartirish
     if branch_id in selected:
         selected.remove(branch_id)
-        msg = "❌ Tanlov olib tashlandi."
     else:
         if len(selected) >= 5:
             await callback.answer("⚠️ Faqat 5 ta filial tanlash mumkin!", show_alert=True)
             return
         selected.add(branch_id)
-        msg = "✅ Tanlov qo‘shildi."
 
     await state.update_data(selected_branches=list(selected))
-    await show_branch_selection(callback.message, state)
-    await callback.answer(msg)
+
+    # 🔄 Inline keyboardni qayta tuzamiz
+    branches = database.fetchall("SELECT id, name FROM branches ORDER BY id")
+    kb = InlineKeyboardBuilder()
+
+    for b in branches:
+        mark = "✅ " if b["id"] in selected else "🏢 "
+        kb.button(text=f"{mark}{b['name']}", callback_data=f"toggle_branch:{b['id']}")
+
+    kb.button(text="✅ Saqlash", callback_data="save_branches")
+    kb.button(text="❌ Bekor qilish", callback_data="cancel_link")
+
+    # ✅ Faqat keyboardni yangilaymiz (matnni o‘zgartirmay)
+    try:
+        await callback.message.edit_reply_markup(reply_markup=kb.as_markup())
+    except Exception:
+        pass
+
+    await callback.answer("🔄 Tanlov yangilandi.")
 
 
 @router.callback_query(F.data == "save_branches")
 async def save_branches(callback: types.CallbackQuery, state: FSMContext):
-    """Tanlangan filiallarni bazaga saqlaydi (avvalgi tanlovlar ustiga yozmaydi, yangilaydi)."""
+    """Tanlangan filiallarni bazaga saqlaydi."""
     data = await state.get_data()
     admin_id = data.get("admin_id")
     selected = data.get("selected_branches", [])
@@ -159,10 +174,7 @@ async def save_branches(callback: types.CallbackQuery, state: FSMContext):
         await callback.answer("⚠️ Hech qanday filial tanlanmadi!", show_alert=True)
         return
 
-    # Eski yozuvlarni olib tashlaymiz
     database.execute("DELETE FROM admin_branches WHERE admin_id = :a", {"a": admin_id})
-
-    # Tanlangan filiallarni bazaga kiritamiz
     for bid in selected:
         database.execute(
             "INSERT INTO admin_branches (admin_id, branch_id) VALUES (:a, :b)",
