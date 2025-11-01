@@ -109,7 +109,6 @@ class ReportState(StatesGroup):
 @router.message(F.text == "🕘 Ishni boshladim")
 async def start_work(message: Message):
     ensure_bonus_tables()
-
     user_id = message.from_user.id
     now = business_now()
     bdate = business_date(now)
@@ -117,11 +116,30 @@ async def start_work(message: Message):
 
     # Bugungi (ish kuni) uchun yozuv bormi?
     existing = database.fetchone(
-        "SELECT id FROM reports WHERE user_id=:u AND date=:d",
+        "SELECT start_time FROM reports WHERE user_id=:u AND date=:d",
         {"u": user_id, "d": bdate}
     )
     if existing:
-        await message.answer("⚠️ Siz bugungi ishni allaqachon boshlagansiz.")
+        prev_start = existing["start_time"]
+        # Oldingi bonus yoki jarimani topamiz
+        bonus = database.fetchone(
+            "SELECT amount, reason FROM bonuses WHERE user_id=:u AND DATE(created_at)=:d AND auto=TRUE",
+            {"u": user_id, "d": bdate}
+        )
+        fine = database.fetchone(
+            "SELECT amount, reason FROM fines WHERE user_id=:u AND DATE(created_at)=:d AND auto=TRUE",
+            {"u": user_id, "d": bdate}
+        )
+
+        text = f"⚠️ Siz bugungi ishni allaqachon boshlagansiz.\n🕘 Ishni boshlagan vaqt: <b>{prev_start}</b>\n\n"
+        if bonus:
+            text += f"✅ Bonus: {fmt_sum(bonus['amount'])} so‘m\n🟢 {bonus['reason']}"
+        elif fine:
+            text += f"❌ Jarima: {fmt_sum(fine['amount'])} so‘m\n🔴 {fine['reason']}"
+        else:
+            text += "ℹ️ Bonus yoki jarima aniqlanmagan."
+
+        await message.answer(text, parse_mode="HTML")
         return
 
     # Foydalanuvchi filialini olamiz
@@ -137,6 +155,7 @@ async def start_work(message: Message):
     # === Bonus/Jarima hisoblash (09:00 ga nisbatan) ===
     target_dt = datetime.combine(bdate, WORK_START, tzinfo=UZ_TZ)
     diff_minutes = (now - target_dt).total_seconds() / 60
+    result_text = f"🕘 Ishni boshladingiz: <b>{start_time}</b>\n"
 
     if diff_minutes > 10:  # 10 daqiqadan ortiq kechiksa - jarima
         penalty = round((diff_minutes / 60) * RATE_PER_HOUR)
@@ -149,10 +168,7 @@ async def start_work(message: Message):
             "r": f"{diff_minutes:.0f} daqiqa kech kelgani uchun avtomatik jarima",
             "c": user_id
         })
-        await message.answer(
-            f"⚠️ {diff_minutes:.0f} daqiqa kech keldingiz.\n"
-            f"❌ Jarima: {fmt_sum(penalty)} so‘m."
-        )
+        result_text += f"\n❌ Jarima: {fmt_sum(penalty)} so‘m\n🔴 {diff_minutes:.0f} daqiqa kech keldingiz."
     elif diff_minutes < -5:  # 5 daqiqadan ko‘p erta kelsa - bonus
         bonus = round((abs(diff_minutes) / 60) * RATE_PER_HOUR)
         database.execute("""
@@ -164,14 +180,11 @@ async def start_work(message: Message):
             "r": f"{abs(diff_minutes):.0f} daqiqa erta kelgani uchun avtomatik bonus",
             "c": user_id
         })
-        await message.answer(
-            f"🌅 {abs(diff_minutes):.0f} daqiqa erta keldingiz.\n"
-            f"✅ Bonus: {fmt_sum(bonus)} so‘m."
-        )
+        result_text += f"\n✅ Bonus: {fmt_sum(bonus)} so‘m\n🟢 {abs(diff_minutes):.0f} daqiqa erta keldingiz."
     else:
-        await message.answer("🕘 O‘z vaqtida ishga keldingiz 👍")
+        result_text += "\n👍 O‘z vaqtida ishga keldingiz."
 
-    await message.answer(f"✅ Ish boshlanish vaqti saqlandi: {start_time}")
+    await message.answer(result_text, parse_mode="HTML")
 
 
 # ===============================
