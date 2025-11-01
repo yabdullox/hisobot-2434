@@ -82,6 +82,243 @@ async def finish_work(message: Message):
 
 
 # ===============================
+# 🧹 TOZALASH RASMI — FSM
+# ===============================
+class CleaningFSM(StatesGroup):
+    waiting_photo = State()
+
+@router.message(F.text == "🧹 Tozalash rasmi yuborish")
+async def cleaning_start(message: Message, state: FSMContext):
+    await message.answer("🧹 Tozalangan joyning **1 ta** rasmini yuboring.\n\nBekor qilish: ⬅️ Orqaga")
+    await state.set_state(CleaningFSM.waiting_photo)
+
+@router.message(CleaningFSM.waiting_photo, F.photo)
+async def cleaning_photo_received(message: Message, state: FSMContext):
+    file_id = message.photo[-1].file_id
+    user = database.fetchone(
+        "SELECT full_name, branch_id FROM users WHERE telegram_id=:tid", {"tid": message.from_user.id}
+    )
+    branch = database.fetchone("SELECT name FROM branches WHERE id=:id", {"id": user["branch_id"]}) if user else None
+    branch_name = branch["name"] if branch else "Noma’lum filial"
+
+    caption = (f"🧹 Tozalash rasmi\n"
+               f"👤 {message.from_user.full_name} (ID: {message.from_user.id})\n"
+               f"🏢 {branch_name}\n"
+               f"🕒 {datetime.now().strftime('%Y-%m-%d %H:%M')}")
+
+    # Superadmin(lar)ga rasmni yuborish
+    for admin_id in SUPERADMINS:
+        try:
+            await message.bot.send_photo(admin_id, file_id, caption=caption)
+        except Exception as e:
+            print(f"[XATO] Tozalash rasmini yuborishda: {e}")
+
+    await message.answer("✅ Rasm yuborildi.", reply_markup=get_worker_kb())
+    await state.clear()
+
+@router.message(CleaningFSM.waiting_photo)
+async def cleaning_only_photo(message: Message):
+    await message.answer("📸 Iltimos, rasm yuboring (matn emas).")
+
+
+# ===============================
+# 💬 MUAMMO YUBORISH — FSM
+# ===============================
+class ProblemFSM(StatesGroup):
+    waiting_description = State()
+    waiting_photo = State()
+
+@router.message(F.text == "💬 Muammo yuborish")
+async def problem_start(message: Message, state: FSMContext):
+    await message.answer("💬 Muammo matnini yozib yuboring.\nBekor: ⬅️ Orqaga")
+    await state.set_state(ProblemFSM.waiting_description)
+
+@router.message(ProblemFSM.waiting_description, F.text)
+async def problem_description(message: Message, state: FSMContext):
+    desc = message.text.strip()
+    if not desc:
+        await message.answer("⚠️ Bo‘sh matn yubormang. Muammo matnini yozing.")
+        return
+    await state.update_data(description=desc)
+    await message.answer("📎 Rasm yubormoqchimisiz? Yuboring yoki **Yo‘q** deb yozing.")
+    await state.set_state(ProblemFSM.waiting_photo)
+
+@router.message(ProblemFSM.waiting_photo, F.photo)
+async def problem_photo(message: Message, state: FSMContext):
+    data = await state.get_data()
+    file_id = message.photo[-1].file_id
+    user = database.fetchone(
+        "SELECT full_name, branch_id FROM users WHERE telegram_id=:tid", {"tid": message.from_user.id}
+    )
+    branch = database.fetchone("SELECT name FROM branches WHERE id=:id", {"id": user["branch_id"]}) if user else None
+    branch_name = branch["name"] if branch else "Noma’lum filial"
+
+    caption = (f"⚠️ MUAMMO\n"
+               f"🏢 {branch_name}\n"
+               f"👤 {message.from_user.full_name} (ID: {message.from_user.id})\n"
+               f"📝 {data['description']}\n"
+               f"🕒 {datetime.now().strftime('%Y-%m-%d %H:%M')}")
+
+    for admin_id in SUPERADMINS:
+        try:
+            await message.bot.send_photo(admin_id, file_id, caption=caption)
+        except Exception as e:
+            print(f"[XATO] Muammo foto yuborishda: {e}")
+
+    await message.answer("✅ Muammo yuborildi.", reply_markup=get_worker_kb())
+    await state.clear()
+
+@router.message(ProblemFSM.waiting_photo, F.text.lower().in_(["yo‘q", "yoq", "yo'q"]))
+async def problem_no_photo(message: Message, state: FSMContext):
+    data = await state.get_data()
+    user = database.fetchone(
+        "SELECT full_name, branch_id FROM users WHERE telegram_id=:tid", {"tid": message.from_user.id}
+    )
+    branch = database.fetchone("SELECT name FROM branches WHERE id=:id", {"id": user["branch_id"]}) if user else None
+    branch_name = branch["name"] if branch else "Noma’lum filial"
+
+    text = (f"⚠️ MUAMMO\n"
+            f"🏢 {branch_name}\n"
+            f"👤 {message.from_user.full_name} (ID: {message.from_user.id})\n"
+            f"📝 {data['description']}\n"
+            f"🕒 {datetime.now().strftime('%Y-%m-%d %H:%M')}")
+
+    for admin_id in SUPERADMINS:
+        try:
+            await message.bot.send_message(admin_id, text)
+        except Exception as e:
+            print(f"[XATO] Muammo matn yuborishda: {e}")
+
+    await message.answer("✅ Muammo yuborildi.", reply_markup=get_worker_kb())
+    await state.clear()
+
+@router.message(ProblemFSM.waiting_photo)
+async def problem_waiting_photo_hint(message: Message):
+    await message.answer("📎 Rasm yuboring yoki **Yo‘q** deb yozing.")
+
+
+# ===============================
+# 💰 BONUS / JARIMALAR — menyu va ko‘rish
+# ===============================
+@router.message(F.text == "💰 Bonus / Jarimalarim")
+async def bonus_menu(message: Message):
+    await message.answer("💰 Bonus / Jarima bo‘limi:", reply_markup=get_bonus_kb())
+
+@router.message(F.text == "📅 Bugungi")
+async def show_today_bonus_fines(message: Message):
+    uz_tz = pytz.timezone("Asia/Tashkent")
+    today = datetime.now(uz_tz).date()
+    uid = message.from_user.id
+
+    bonuses = database.fetchall("""
+        SELECT amount, reason, created_at
+        FROM bonuses
+        WHERE user_id=:u AND DATE(created_at)=:d
+        ORDER BY created_at DESC
+    """, {"u": uid, "d": today})
+
+    fines = database.fetchall("""
+        SELECT amount, reason, created_at
+        FROM fines
+        WHERE user_id=:u AND DATE(created_at)=:d
+        ORDER BY created_at DESC
+    """, {"u": uid, "d": today})
+
+    text = f"📅 <b>Bugungi ({today}) bonus/jarimalar:</b>\n\n"
+    if not bonuses and not fines:
+        text += "📭 Hech narsa yo‘q."
+    else:
+        if bonuses:
+            text += "✅ <b>Bonuslar:</b>\n"
+            for b in bonuses:
+                text += f"➕ {b['amount']:,} so‘m — {b['reason']} ({b['created_at']})\n"
+            text += "\n"
+        if fines:
+            text += "❌ <b>Jarimalar:</b>\n"
+            for f in fines:
+                text += f"➖ {f['amount']:,} so‘m — {f['reason']} ({f['created_at']})\n"
+    await message.answer(text, parse_mode="HTML")
+
+@router.message(F.text == "📊 Umumiy")
+async def show_all_bonus_fines(message: Message):
+    uid = message.from_user.id
+
+    bonuses = database.fetchall("""
+        SELECT amount, reason, created_at
+        FROM bonuses
+        WHERE user_id=:u
+        ORDER BY created_at DESC
+        LIMIT 50
+    """, {"u": uid})
+
+    fines = database.fetchall("""
+        SELECT amount, reason, created_at
+        FROM fines
+        WHERE user_id=:u
+        ORDER BY created_at DESC
+        LIMIT 50
+    """, {"u": uid})
+
+    text = "📋 <b>Umumiy bonus/jarimalar (oxirgi 50):</b>\n\n"
+    if not bonuses and not fines:
+        text += "📭 Hozircha yozuv yo‘q."
+    else:
+        if bonuses:
+            text += "✅ <b>Bonuslar:</b>\n"
+            for b in bonuses:
+                text += f"➕ {b['amount']:,} so‘m — {b['reason']} ({b['created_at']})\n"
+            text += "\n"
+        if fines:
+            text += "❌ <b>Jarimalar:</b>\n"
+            for f in fines:
+                text += f"➖ {f['amount']:,} so‘m — {f['reason']} ({f['created_at']})\n"
+    await message.answer(text, parse_mode="HTML")
+
+
+# ===============================
+# 📓 ESLATMALARIM — ko‘rish/qo‘shish
+# ===============================
+class NotesFSM(StatesGroup):
+    waiting_text = State()
+
+@router.message(F.text == "📓 Eslatmalarim")
+async def open_notes(message: Message, state: FSMContext):
+    uid = message.from_user.id
+    notes = database.list_notes(uid)  # database.py ichida bor
+    text = "📓 <b>Eslatmalarim:</b>\n"
+    if not notes:
+        text += "📭 Hozircha eslatma yo‘q.\n\n"
+    else:
+        for n in notes[:10]:
+            when = n['created_at']
+            text += f"• {n['text']}  ({when})\n"
+        text += "\n"
+    text += "✍️ Yangi eslatma yozib yuboring. Bekor: ⬅️ Orqaga"
+    await message.answer(text, parse_mode="HTML")
+    await state.set_state(NotesFSM.waiting_text)
+
+@router.message(NotesFSM.waiting_text, F.text)
+async def add_note_text(message: Message, state: FSMContext):
+    txt = message.text.strip()
+    if txt in ["🕘 Ishni boshladim", "🏁 Ishni tugatdim", "🧹 Tozalash rasmi yuborish", "💬 Muammo yuborish",
+               "📋 Ombor holati", "🧾 Bugungi hisobotni yuborish", "💰 Bonus / Jarimalarim", "📓 Eslatmalarim",
+               "📅 Bugungi", "📊 Umumiy", "⬅️ Orqaga"]:
+        # Tugma matni yuborilsa — e’tibor bermaymiz
+        return
+
+    ok = database.add_note(message.from_user.id, txt)
+    if ok:
+        await message.answer("📝 Eslatma saqlandi.", reply_markup=get_worker_kb())
+    else:
+        await message.answer("❌ Eslatma saqlanmadi. Keyinroq yana urunib ko‘ring.", reply_markup=get_worker_kb())
+    await state.clear()
+
+# ⬅️ Orqaga universal
+@router.message(F.text == "⬅️ Orqaga")
+async def back_from_any_state(message: Message, state: FSMContext):
+    await state.clear()
+    await message.answer("🏠 Asosiy menyu:", reply_markup=get_worker_kb())
+# ===============================
 # 🧾 Bugungi hisobot
 # ===============================
 @router.message(F.text == "🧾 Bugungi hisobotni yuborish")
