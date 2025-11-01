@@ -200,8 +200,8 @@ async def cancel_action(callback: types.CallbackQuery):
 # ===============================
 # 📋 FILIALLAR RO‘YXATI (INLINE)
 # ===============================
-@router.message(F.text == "📊 Bugungi hisobotlar")
-async def choose_branch_today(message: types.Message):
+@router.message(F.text.in_(["📊 Bugungi hisobotlar", "📈 Umumiy hisobotlar"]))
+async def choose_report_type(message: types.Message):
     """Superadmin uchun filiallar ro‘yxatini ko‘rsatadi (bugungi hisobot uchun)."""
     branches = database.fetchall("SELECT id, name FROM branches ORDER BY id")
     if not branches:
