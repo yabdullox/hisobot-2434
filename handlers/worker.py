@@ -263,49 +263,99 @@ async def show_warehouse(message: Message):
         text += f"• {p['product_name']} — {fmt_sum(p['quantity'])} {p['unit']}\n"
     await message.answer(text, parse_mode="HTML")
 
+
 # ===============================
-# 💰 Bonus / Jarimalar
+# 💰 Bonus / Jarimalarim — TO‘G‘RILANGAN ISHLAYDIGAN VERSIYA
 # ===============================
+from aiogram import types, F
+from keyboards.worker_kb import get_bonus_kb
+
 @router.message(F.text == "💰 Bonus / Jarimalarim")
-async def open_bonus_menu(message: Message):
-    ensure_bonus_tables()
+async def open_bonus_menu(message: types.Message):
+    # Jadval mavjudligini tekshirish (agar yo‘q bo‘lsa yaratadi)
+    database.execute("""
+        CREATE TABLE IF NOT EXISTS bonuses (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id BIGINT,
+            amount REAL,
+            reason TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    database.execute("""
+        CREATE TABLE IF NOT EXISTS fines (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id BIGINT,
+            amount REAL,
+            reason TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
     await message.answer("💰 Bonus yoki jarimalarni tanlang:", reply_markup=get_bonus_kb())
 
 
+# ===============================
+# 📅 Bugungi Bonus / Jarimalar
+# ===============================
 @router.message(F.text == "📅 Bugungi")
-async def show_today_bonus(message: Message):
-    today = business_date()
-    user = message.from_user.id
-    b = database.fetchall("SELECT * FROM bonuses WHERE user_id=:u AND DATE(created_at)=:d", {"u": user, "d": today})
-    f = database.fetchall("SELECT * FROM fines WHERE user_id=:u AND DATE(created_at)=:d", {"u": user, "d": today})
+async def show_today_bonus(message: types.Message):
+    from datetime import date
+    today = str(date.today())
+    user_id = message.from_user.id
 
-    txt = f"📅 <b>Bugungi ({today}) bonus va jarimalar:</b>\n\n"
-    if not b and not f:
-        txt += "📭 Hozircha yozuv yo‘q."
+    bonuses = database.fetchall(
+        "SELECT amount, reason, created_at FROM bonuses WHERE user_id = :u AND DATE(created_at) = :d",
+        {"u": user_id, "d": today}
+    )
+    fines = database.fetchall(
+        "SELECT amount, reason, created_at FROM fines WHERE user_id = :u AND DATE(created_at) = :d",
+        {"u": user_id, "d": today}
+    )
+
+    text = f"📅 <b>Bugungi ({today}) bonus va jarimalar:</b>\n\n"
+    if not bonuses and not fines:
+        text += "📭 Hozircha yozuv yo‘q."
     else:
-        if b:
-            txt += "✅ Bonuslar:\n" + "\n".join([f"➕ {fmt_sum(x['amount'])} — {x['reason']}" for x in b]) + "\n\n"
-        if f:
-            txt += "❌ Jarimalar:\n" + "\n".join([f"➖ {fmt_sum(x['amount'])} — {x['reason']}" for x in f])
-    await message.answer(txt, parse_mode="HTML")
+        if bonuses:
+            text += "✅ <b>Bonuslar:</b>\n" + "\n".join(
+                [f"➕ {fmt_sum(x['amount'])} so‘m — {x['reason']}" for x in bonuses]
+            ) + "\n\n"
+        if fines:
+            text += "❌ <b>Jarimalar:</b>\n" + "\n".join(
+                [f"➖ {fmt_sum(x['amount'])} so‘m — {x['reason']}" for x in fines]
+            )
+    await message.answer(text, parse_mode="HTML")
 
 
+# ===============================
+# 📊 Umumiy Bonus / Jarimalar
+# ===============================
 @router.message(F.text == "📊 Umumiy")
-async def show_all_bonus(message: Message):
-    user = message.from_user.id
-    b = database.fetchall("SELECT * FROM bonuses WHERE user_id=:u ORDER BY created_at DESC LIMIT 30", {"u": user})
-    f = database.fetchall("SELECT * FROM fines WHERE user_id=:u ORDER BY created_at DESC LIMIT 30", {"u": user})
-    txt = "📊 <b>So‘nggi 30 ta bonus/jarima:</b>\n\n"
-    if not b and not f:
-        txt += "📭 Yozuv yo‘q."
+async def show_all_bonus(message: types.Message):
+    user_id = message.from_user.id
+    bonuses = database.fetchall(
+        "SELECT amount, reason, created_at FROM bonuses WHERE user_id = :u ORDER BY created_at DESC LIMIT 30",
+        {"u": user_id}
+    )
+    fines = database.fetchall(
+        "SELECT amount, reason, created_at FROM fines WHERE user_id = :u ORDER BY created_at DESC LIMIT 30",
+        {"u": user_id}
+    )
+
+    text = "📊 <b>So‘nggi 30 ta bonus va jarima:</b>\n\n"
+    if not bonuses and not fines:
+        text += "📭 Yozuv yo‘q."
     else:
-        if b:
-            txt += "✅ Bonuslar:\n" + "\n".join([f"➕ {fmt_sum(x['amount'])} — {x['reason']}" for x in b]) + "\n\n"
-        if f:
-            txt += "❌ Jarimalar:\n" + "\n".join([f"➖ {fmt_sum(x['amount'])} — {x['reason']}" for x in f])
-    await message.answer(txt, parse_mode="HTML")
-
-
+        if bonuses:
+            text += "✅ <b>Bonuslar:</b>\n" + "\n".join(
+                [f"➕ {fmt_sum(x['amount'])} so‘m — {x['reason']}" for x in bonuses]
+            ) + "\n\n"
+        if fines:
+            text += "❌ <b>Jarimalar:</b>\n" + "\n".join(
+                [f"➖ {fmt_sum(x['amount'])} so‘m — {x['reason']}" for x in fines]
+            )
+    await message.answer(text, parse_mode="HTML")
 # ===============================
 # ⬅️ Orqaga
 # ===============================
