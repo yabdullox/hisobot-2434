@@ -18,6 +18,7 @@ router = Router()
 
 # --- Sozlamalar ---
 UZ_TZ = pytz.timezone("Asia/Tashkent")
+database.ensure_reports_columns()
 WORK_START = time(9, 0, 0)
 CUTOFF = time(0, 10, 0)
 RATE_PER_HOUR = 10_000
