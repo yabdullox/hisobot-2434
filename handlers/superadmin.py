@@ -233,18 +233,21 @@ async def choose_branch_all(message: types.Message):
 
 
 # ===============================
-# 📅 BUGUNGI HISOBOTLAR — YANGI VERSIYA
+# 📅 BUGUNGI HISOBOTLAR — TO‘G‘RILANGAN ISHLAYDIGAN VERSIYA
 # ===============================
+from datetime import datetime
+import pytz
+
 @router.callback_query(F.data.startswith("today_branch:"))
 async def show_today_reports(callback: types.CallbackQuery):
     """Bugungi filial hisobotlarini ko‘rsatadi (O‘zbekiston vaqti bilan)."""
     branch_id = int(callback.data.split(":")[1])
 
-    # 🕓 O‘zbekiston vaqt zonasi bo‘yicha hozirgi sana
+    # 🕓 O‘zbekiston vaqti bilan hozirgi sana
     uz_tz = pytz.timezone("Asia/Tashkent")
     today = datetime.now(uz_tz).date()
 
-    # 🧾 Ma'lumotlarni olish
+    # 🧾 Hisobotlarni olish (sqlite uchun DATE() emas, to‘g‘ridan-to‘g‘ri qiymat bilan)
     reports = database.fetchall("""
         SELECT 
             r.user_id,
@@ -262,9 +265,9 @@ async def show_today_reports(callback: types.CallbackQuery):
         FROM reports r
         LEFT JOIN users u ON u.telegram_id = r.user_id
         LEFT JOIN branches b ON b.id = r.branch_id
-        WHERE DATE(r.date) = :today AND r.branch_id = :bid
-        ORDER BY r.date DESC, r.start_time
-    """, {"today": today, "bid": branch_id})
+        WHERE r.date = :today AND r.branch_id = :bid
+        ORDER BY r.start_time
+    """, {"today": str(today), "bid": branch_id})
 
     # ⚠️ Agar hisobot topilmasa
     if not reports:
@@ -279,16 +282,16 @@ async def show_today_reports(callback: types.CallbackQuery):
     branch_name = reports[0]["branch_name"] or f"ID: {branch_id}"
     result = f"📅 <b>{branch_name}</b> — bugungi hisobotlar ({today}):\n\n"
 
-    # 🧱 Har bir hisobotni qo‘shish
+    # 🧱 Har bir hisobotni formatlab chiqarish
     for r in reports:
         result += (
             f"👷‍♂️ <b>Ishchi:</b> {r['full_name'] or 'Noma’lum'}\n"
             f"🏢 <b>Filial:</b> {r['branch_name']} (ID: {r['branch_id']})\n"
             f"🆔 <b>Telegram ID:</b> <code>{r['user_id']}</code>\n\n"
             f"🕒 <b>Vaqt:</b> {r['start_time'] or '-'} — {r['end_time'] or '-'}\n"
-            f"💰 <b>Daromad:</b> {fmt_sum(r['income'])} so‘m\n"
-            f"💸 <b>Rashod:</b> {fmt_sum(r['expense'])} so‘m\n"
-            f"💵 <b>Qolgan:</b> {fmt_sum(r['remaining'])} so‘m\n\n"
+            f"💰 <b>Daromad:</b> {fmt_sum(r['income'] or 0)} so‘m\n"
+            f"💸 <b>Rashod:</b> {fmt_sum(r['expense'] or 0)} so‘m\n"
+            f"💵 <b>Qolgan:</b> {fmt_sum(r['remaining'] or 0)} so‘m\n\n"
             f"🛒 <b>Sotilganlar:</b>\n{r['sold_items'] or '—'}\n\n"
             f"📦 <b>Qolgan mahsulotlar:</b>\n{r['notes'] or '—'}\n"
             "━━━━━━━━━━━━━━━━━━━━━━━\n"
@@ -297,7 +300,6 @@ async def show_today_reports(callback: types.CallbackQuery):
     # 📨 Natijani yuborish
     await callback.message.answer(result, parse_mode="HTML")
     await callback.answer()
-
 
 # ===============================
 # 📈 UMUMIY HISOBOTLAR
