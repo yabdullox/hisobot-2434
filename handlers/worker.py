@@ -176,42 +176,45 @@ async def finish_report(message: Message, state: FSMContext):
         await state.clear()
         return
 
-   data = await state.get_data()
-user_id = message.from_user.id
-bdate = business_date()
+    data = await state.get_data()
+    user_id = message.from_user.id
+    bdate = business_date()
 
-branch_id = data.get("branch_id")
-income = data.get("income", 0)
-expense = data.get("expense", 0)
-remaining = income - expense
-sold = data.get("sold", [])
+    branch_id = data.get("branch_id")
+    income = data.get("income", 0)
+    expense = data.get("expense", 0)
+    remaining = income - expense
+    sold = data.get("sold", [])
 
-sold_text = "\n".join([f"- {s['name']} — {s['amount']} {s['unit']}" for s in sold]) or "—"
-remain_text = "\n".join([f"- {s['name']} — {s['remaining']} {s['unit']}" for s in sold]) or "—"
+    sold_text = "\n".join([f"- {s['name']} — {s['amount']} {s['unit']}" for s in sold]) or "—"
+    remain_text = "\n".join([f"- {s['name']} — {s['remaining']} {s['unit']}" for s in sold]) or "—"
 
-existing = database.fetchone(
-    "SELECT id FROM reports WHERE user_id=:u AND date=:d",
-    {"u": user_id, "d": bdate}
-)
+    # 🔄 Agar shu kunga yozilgan hisobot mavjud bo‘lsa, UPDATE qilamiz
+    existing = database.fetchone(
+        "SELECT id FROM reports WHERE user_id=:u AND date=:d",
+        {"u": user_id, "d": bdate}
+    )
 
-if existing:
-    database.execute("""
-        UPDATE reports
-        SET branch_id=:b, income=:i, expense=:e, remaining=:r, sold_items=:s, notes=:n
-        WHERE user_id=:u AND date=:d
-    """, {
-        "u": user_id, "b": branch_id, "d": bdate, "i": income, "e": expense,
-        "r": remaining, "s": sold_text, "n": remain_text
-    })
-else:
-    database.execute("""
-        INSERT INTO reports (user_id, branch_id, date, income, expense, remaining, sold_items, notes)
-        VALUES (:u, :b, :d, :i, :e, :r, :s, :n)
-    """, {
-        "u": user_id, "b": branch_id, "d": bdate, "i": income, "e": expense,
-        "r": remaining, "s": sold_text, "n": remain_text
-    })
+    if existing:
+        database.execute("""
+            UPDATE reports
+            SET branch_id=:b, income=:i, expense=:e, remaining=:r, sold_items=:s, notes=:n
+            WHERE user_id=:u AND date=:d
+        """, {
+            "u": user_id, "b": branch_id, "d": bdate, "i": income, "e": expense,
+            "r": remaining, "s": sold_text, "n": remain_text
+        })
+    else:
+        database.execute("""
+            INSERT INTO reports (user_id, branch_id, date, income, expense, remaining, sold_items, notes)
+            VALUES (:u, :b, :d, :i, :e, :r, :s, :n)
+        """, {
+            "u": user_id, "b": branch_id, "d": bdate, "i": income, "e": expense,
+            "r": remaining, "s": sold_text, "n": remain_text
+        })
 
+    await message.answer("✅ Hisobot bazaga saqlandi va yangilandi (agar avval bor bo‘lsa).")
+    await state.clear()
     # 📤 Superadminlarga yuborish
     branch = database.fetchone("SELECT name FROM branches WHERE id=:id", {"id": branch_id})
     bname = branch["name"] if branch else "-"
