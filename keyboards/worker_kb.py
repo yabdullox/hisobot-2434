@@ -1,47 +1,42 @@
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 
-# 👷 ISHCHI ASOSIY MENYUSI
+# 👷 ISHCHI — ASOSIY MENYU
 def get_worker_kb():
     kb = [
-        [
+        [  # Ish vaqtlarini belgilash
             KeyboardButton(text="🕘 Ishni boshladim"),
-            KeyboardButton(text="🏁 Ishni tugatdim")
+            KeyboardButton(text="🏁 Ishni tugatdim"),
         ],
-        [
-            KeyboardButton(text="🧹 Tozalash rasmi yuborish"),
-            KeyboardButton(text="💬 Muammo yuborish")
-        ],
-        [
+        [  # Hisobot va Ombor
+            KeyboardButton(text="🧾 Bugungi hisobotni yuborish"),
             KeyboardButton(text="📋 Ombor holati"),
-            KeyboardButton(text="🧾 Bugungi hisobotni yuborish")
         ],
-        [
+        [  # Bonus/Jarima bo‘limi
             KeyboardButton(text="💰 Bonus / Jarimalarim"),
-            KeyboardButton(text="📓 Eslatmalarim")
-        ]
+        ],
     ]
 
     return ReplyKeyboardMarkup(
         keyboard=kb,
         resize_keyboard=True,
-        input_field_placeholder="Tanlang 👇"
+        input_field_placeholder="Tanlang 👇",
     )
 
 
-# 💰 BONUS / JARIMA BO‘LIMI — 🔹 SHU YO‘Q BO‘LGANI SABABLI XATO BO‘LGAN
+# 💰 BONUS / JARIMA BO‘LIMI
 def get_bonus_kb():
     kb = [
         [
             KeyboardButton(text="📅 Bugungi"),
-            KeyboardButton(text="📊 Umumiy")
+            KeyboardButton(text="📋 Umumiy"),   # 🔁 handlerga mos: show_all_bonus()
         ],
         [
-            KeyboardButton(text="⬅️ Orqaga")
-        ]
+            KeyboardButton(text="⬅️ Orqaga"),
+        ],
     ]
 
     return ReplyKeyboardMarkup(
         keyboard=kb,
         resize_keyboard=True,
-        input_field_placeholder="Bonus / Jarima bo‘limini tanlang 👇"
+        input_field_placeholder="Bonus / Jarima bo‘limini tanlang 👇",
     )
