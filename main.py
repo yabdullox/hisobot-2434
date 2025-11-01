@@ -16,6 +16,7 @@ from handlers import worker as worker_h  # ✅ faqat bitta import
 
 # === ENV SOZLAMALAR ===
 load_dotenv()
+database.ensure_reports_columns()
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 
 # === LOGGING ===
