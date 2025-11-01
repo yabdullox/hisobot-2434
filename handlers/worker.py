@@ -213,22 +213,24 @@ async def finish_report(message: Message, state: FSMContext):
             "r": remaining, "s": sold_text, "n": remain_text
         })
 
-    await state.clear()
-    await message.answer("✅ Hisobot bazaga saqlandi va yangilandi (agar avval bor bo‘lsa).")
-    # 📤 Superadminlarga yuborish
+    # 📤 Superadminlarga xabar yuborish
     branch = database.fetchone("SELECT name FROM branches WHERE id=:id", {"id": branch_id})
-    bname = branch["name"] if branch else "-"
-    report_text = (f"📅 {bdate}\n🏢 {bname}\n👤 {message.from_user.full_name}\n\n"
-                   f"💰 {fmt_sum(income)} | 💸 {fmt_sum(expense)} | 💵 {fmt_sum(remaining)}\n\n"
-                   f"🛒 Sotilganlar:\n{sold_text}\n\n📦 Qolgan:\n{remain_text}")
+    bname = branch["name"] if branch else "Noma’lum filial"
+    report_text = (
+        f"📅 {bdate}\n🏢 {bname}\n👤 {message.from_user.full_name}\n\n"
+        f"💰 Daromad: {fmt_sum(income)}\n💸 Rashod: {fmt_sum(expense)}\n💵 Qolgan: {fmt_sum(remaining)}\n\n"
+        f"🛒 Sotilganlar:\n{sold_text}\n\n📦 Qolgan:\n{remain_text}"
+    )
 
-    # Excel yaratish
+    # Excel fayl yaratish
+    from openpyxl import Workbook
     wb = Workbook()
     ws = wb.active
     ws.title = "Hisobot"
     ws.append(["Mahsulot", "Sotilgan", "Qolgan"])
     for s in sold:
         ws.append([s["name"], s["amount"], s["remaining"]])
+
     file_path = f"/tmp/hisobot_{bname}_{bdate}.xlsx".replace(" ", "_")
     wb.save(file_path)
 
@@ -241,8 +243,9 @@ async def finish_report(message: Message, state: FSMContext):
 
     if os.path.exists(file_path):
         os.remove(file_path)
-    
 
+    await message.answer("✅ Hisobot bazaga saqlandi va yangilandi (agar avval bor bo‘lsa).")
+    await state.clear()
 
 # --- 📋 Ombor holati ---
 @router.message(F.text == "📋 Ombor holati")
