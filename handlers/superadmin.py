@@ -66,59 +66,101 @@ async def cmd_start(message: types.Message):
     )
 
 
-# ➕ Adminni filialga biriktirish - bosilganda adminlar ro'yxati chiqadi
+# ===============================
+# 👥 Adminni bir nechta filialga biriktirish (✅ belgili variant)
+# ===============================
+from aiogram.utils.keyboard import InlineKeyboardBuilder
+
+# Holatlarni saqlash uchun FSM
+from aiogram.fsm.state import State, StatesGroup
+
+class AdminLinkState(StatesGroup):
+    admin_id = State()
+    selected_branches = State()
+
+
 @router.message(F.text == "➕ Adminni filialga biriktirish")
-async def start_admin_branch_link(message: types.Message):
-    # Adminlar ro'yxatini oling (role='admin')
+async def start_admin_link(message: types.Message, state: FSMContext):
+    """Admin tanlash uchun menyu chiqaradi."""
     admins = database.fetchall("SELECT id, full_name, telegram_id FROM users WHERE role='admin' ORDER BY id")
     if not admins:
         await message.answer("👥 Hozircha adminlar mavjud emas.")
         return
 
-    kb = InlineKeyboardMarkup()
+    kb = InlineKeyboardBuilder()
     for a in admins:
-        # callback format: link_admin:{admin_id}
-        kb.add(InlineKeyboardButton(text=f"{a['full_name']} ({a['telegram_id']})", callback_data=f"link_admin:{a['id']}"))
-
-    kb.add(InlineKeyboardButton(text="❌ Bekor qilish", callback_data="link_admin:cancel"))
-    await message.answer("👥 Adminni tanlang — keyin filialni tanlaysiz:", reply_markup=kb)
+        kb.button(text=f"{a['full_name']} ({a['telegram_id']})", callback_data=f"choose_admin:{a['id']}")
+    kb.button(text="❌ Bekor qilish", callback_data="cancel_link")
+    await message.answer("👥 Qaysi adminni filial(larga) biriktirmoqchisiz?", reply_markup=kb.as_markup())
 
 
-# Callback: admin tanlandi -> filiallar ro'yxatini ko'rsat
-@router.callback_query(F.data.startswith("link_admin:"))
-async def handle_admin_selected(callback: types.CallbackQuery):
-    data = callback.data.split(":")[1]
-    if data == "cancel":
-        await callback.message.answer("❌ Bekor qilindi.")
-        await callback.answer()
-        return
-
-    admin_id = int(data)
-    # filiallar
+@router.callback_query(F.data.startswith("choose_admin:"))
+async def choose_admin(callback: types.CallbackQuery, state: FSMContext):
+    """Admin tanlangach — filiallar ro‘yxatini ko‘rsatadi."""
+    admin_id = int(callback.data.split(":")[1])
     branches = database.fetchall("SELECT id, name FROM branches ORDER BY id")
+
     if not branches:
         await callback.message.answer("🏢 Hozircha filiallar mavjud emas.")
         await callback.answer()
         return
 
-    kb = InlineKeyboardMarkup()
-    for b in branches:
-        # callback format: link_admin_confirm:{admin_id}:{branch_id}
-        kb.add(InlineKeyboardButton(text=f"{b['name']} (ID:{b['id']})", callback_data=f"link_admin_confirm:{admin_id}:{b['id']}"))
+    await state.set_state(AdminLinkState.selected_branches)
+    await state.update_data(admin_id=admin_id, selected_branches=[])
 
-    kb.add(InlineKeyboardButton(text="❌ Bekor qilish", callback_data="link_admin:cancel"))
-    await callback.message.answer("🏢 Qaysi filialga biriktirmoqchisiz? (bitta yoki bir nechta tanlang — ketma-ket bosing)", reply_markup=kb)
+    await show_branch_selection(callback.message, state)
     await callback.answer()
 
 
-# Callback: tasdiqlash -> jadvalga yozamiz (bitta tugma bosilganda qo'shiladi)
-@router.callback_query(F.data.startswith("link_admin_confirm:"))
-async def handle_admin_branch_confirm(callback: types.CallbackQuery):
-    parts = callback.data.split(":")
-    admin_id = int(parts[1])
-    branch_id = int(parts[2])
+async def show_branch_selection(message: types.Message, state: FSMContext):
+    """Filiallar ro‘yxatini ✅ belgili qilib chiqaradi."""
+    data = await state.get_data()
+    selected = data.get("selected_branches", [])
+    branches = database.fetchall("SELECT id, name FROM branches ORDER BY id")
 
-    # Chek — admin_branches jadvali borligini ta'minlash (agar kerak bo'lsa)
+    kb = InlineKeyboardBuilder()
+    for b in branches:
+        mark = "✅ " if b["id"] in selected else ""
+        kb.button(text=f"{mark}{b['name']}", callback_data=f"toggle_branch:{b['id']}")
+
+    kb.button(text="✅ Saqlash", callback_data="save_branches")
+    kb.button(text="❌ Bekor qilish", callback_data="cancel_link")
+
+    await message.edit_text("🏢 Filiallarni tanlang (5 tagacha). So‘ng ✅ Saqlash’ni bosing:", reply_markup=kb.as_markup())
+
+
+@router.callback_query(F.data.startswith("toggle_branch:"))
+async def toggle_branch(callback: types.CallbackQuery, state: FSMContext):
+    """Filial tanlanganida ✅ belgini yoqish/o‘chirish."""
+    branch_id = int(callback.data.split(":")[1])
+    data = await state.get_data()
+    selected = set(data.get("selected_branches", []))
+
+    if branch_id in selected:
+        selected.remove(branch_id)
+    else:
+        if len(selected) >= 5:
+            await callback.answer("⚠️ Faqat 5 ta filial tanlash mumkin!", show_alert=True)
+            return
+        selected.add(branch_id)
+
+    await state.update_data(selected_branches=list(selected))
+    await show_branch_selection(callback.message, state)
+    await callback.answer()
+
+
+@router.callback_query(F.data == "save_branches")
+async def save_branches(callback: types.CallbackQuery, state: FSMContext):
+    """Tanlangan filiallarni bazaga saqlaydi."""
+    data = await state.get_data()
+    admin_id = data.get("admin_id")
+    selected = data.get("selected_branches", [])
+
+    if not selected:
+        await callback.answer("⚠️ Hech qanday filial tanlanmadi!", show_alert=True)
+        return
+
+    # Jadval mavjud bo‘lsa ham bo‘lmasa ham yaratamiz
     database.execute("""
         CREATE TABLE IF NOT EXISTS admin_branches (
             id SERIAL PRIMARY KEY,
@@ -128,34 +170,26 @@ async def handle_admin_branch_confirm(callback: types.CallbackQuery):
         )
     """)
 
-    # Tekshir: bunday bog'lanish mavjudmi?
-    exists = database.fetchone(
-        "SELECT id FROM admin_branches WHERE admin_id=:a AND branch_id=:b",
-        {"a": admin_id, "b": branch_id}
-    )
-    if exists:
-        await callback.answer("⚠️ Bu admin allaqachon ushbu filialga biriktirilgan.", show_alert=True)
-        return
+    # Eski biriktirishlarni tozalaymiz
+    database.execute("DELETE FROM admin_branches WHERE admin_id = :a", {"a": admin_id})
 
-    # Chek: admin 5 tadan ortiq filialga biriktirilmasin
-    count = database.fetchone(
-        "SELECT COUNT(*) AS cnt FROM admin_branches WHERE admin_id=:a",
-        {"a": admin_id}
-    )
-    if count and int(count.get("cnt", 0)) >= 5:
-        await callback.answer("❌ Bu admin allaqachon 5 ta filialga biriktirilgan.", show_alert=True)
-        return
+    # Yangi tanlangan filiallarni kiritamiz
+    for bid in selected:
+        database.execute(
+            "INSERT INTO admin_branches (admin_id, branch_id) VALUES (:a, :b)",
+            {"a": admin_id, "b": bid}
+        )
 
-    # Qo'shish
-    database.execute(
-        "INSERT INTO admin_branches (admin_id, branch_id) VALUES (:a, :b)",
-        {"a": admin_id, "b": branch_id}
-    )
-
-    await callback.answer("✅ Admin muvaffaqiyatli biriktirildi.", show_alert=True)
-    await callback.message.answer(f"✅ Admin ID {admin_id} ✅ Filial ID {branch_id} ga biriktirildi.")
+    await state.clear()
+    await callback.message.edit_text("✅ Adminga filiallar muvaffaqiyatli biriktirildi.")
+    await callback.answer()
 
 
+@router.callback_query(F.data == "cancel_link")
+async def cancel_link(callback: types.CallbackQuery, state: FSMContext):
+    await state.clear()
+    await callback.message.edit_text("❌ Amal bekor qilindi.")
+    await callback.answer()
 # ===============================
 # 📊 HISOBOTLAR BO‘LIMI
 # ===============================
