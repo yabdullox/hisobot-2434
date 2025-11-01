@@ -354,7 +354,31 @@ def ensure_reports_columns():
         print("✅ reports jadvalidagi ustunlar tekshirildi (keraklilari qo‘shildi)")
     except Exception as e:
         print(f"⚠️ reports jadvalini yangilashda xato: {e}")
+def ensure_reports_columns():
+    """reports jadvalidagi kerakli ustunlarni avtomatik tekshiradi va qo‘shadi (SQLite uchun)."""
+    try:
+        conn = connect()
+        cursor = conn.cursor()
 
+        # Har bir ustunni alohida tekshirish
+        columns = [row[1] for row in cursor.execute("PRAGMA table_info(reports)").fetchall()]
+        needed = {
+            "income": "NUMERIC",
+            "expense": "NUMERIC",
+            "remaining": "NUMERIC",
+            "sold_items": "TEXT",
+            "notes": "TEXT"
+        }
+
+        for name, ctype in needed.items():
+            if name not in columns:
+                cursor.execute(f"ALTER TABLE reports ADD COLUMN {name} {ctype};")
+
+        conn.commit()
+        conn.close()
+        print("✅ reports jadvali yangilandi.")
+    except Exception as e:
+        print(f"⚠️ Jadval yangilanishida xato: {e}")
 # ===============================
 # 🚀 Ishga tushirish testi
 # ===============================
