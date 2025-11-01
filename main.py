@@ -9,6 +9,7 @@ from aiogram.types import BotCommand
 from aiogram.client.default import DefaultBotProperties
 
 # === LOKAL FAYLLAR ===
+import database  
 from database import init_db
 from handlers import start as start_h, superadmin as superadmin_h, admin as admin_h
 import handlers.admin_branch_link as admin_branch_link_h
