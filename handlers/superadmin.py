@@ -196,12 +196,45 @@ async def cancel_action(callback: types.CallbackQuery):
 
 
 
+
+# ===============================
+# 📋 FILIALLAR RO‘YXATI (INLINE)
+# ===============================
+@router.message(F.text == "📊 Bugungi hisobotlar")
+async def choose_branch_today(message: types.Message):
+    """Superadmin uchun filiallar ro‘yxatini ko‘rsatadi (bugungi hisobot uchun)."""
+    branches = database.fetchall("SELECT id, name FROM branches ORDER BY id")
+    if not branches:
+        await message.answer("📭 Hozircha filiallar mavjud emas.")
+        return
+
+    keyboard = [
+        [types.InlineKeyboardButton(text=f"🏢 {b['name']}", callback_data=f"today_branch:{b['id']}")]
+        for b in branches
+    ]
+    await message.answer("📅 Qaysi filial uchun bugungi hisobotni ko‘rasiz?", 
+                         reply_markup=types.InlineKeyboardMarkup(inline_keyboard=keyboard))
+
+
+@router.message(F.text == "📈 Umumiy hisobotlar")
+async def choose_branch_all(message: types.Message):
+    """Superadmin uchun filiallar ro‘yxatini ko‘rsatadi (umumiy hisobot uchun)."""
+    branches = database.fetchall("SELECT id, name FROM branches ORDER BY id")
+    if not branches:
+        await message.answer("📭 Hozircha filiallar mavjud emas.")
+        return
+
+    keyboard = [
+        [types.InlineKeyboardButton(text=f"🏢 {b['name']}", callback_data=f"all_branch:{b['id']}")]
+        for b in branches
+    ]
+    await message.answer("📈 Qaysi filial uchun umumiy hisobotni ko‘rasiz?", 
+                         reply_markup=types.InlineKeyboardMarkup(inline_keyboard=keyboard))
+
+
 # ===============================
 # 📅 BUGUNGI HISOBOTLAR — YANGI VERSIYA
 # ===============================
-from datetime import datetime
-import pytz
-
 @router.callback_query(F.data.startswith("today_branch:"))
 async def show_today_reports(callback: types.CallbackQuery):
     """Bugungi filial hisobotlarini ko‘rsatadi (O‘zbekiston vaqti bilan)."""
@@ -220,12 +253,16 @@ async def show_today_reports(callback: types.CallbackQuery):
             r.date,
             r.start_time,
             r.end_time,
-            r.text,
+            r.income,
+            r.expense,
+            r.remaining,
+            r.sold_items,
+            r.notes,
             b.name AS branch_name
         FROM reports r
         LEFT JOIN users u ON u.telegram_id = r.user_id
         LEFT JOIN branches b ON b.id = r.branch_id
-        WHERE DATE(r.date) = :today AND r.branch_id = :bid AND r.text IS NOT NULL
+        WHERE DATE(r.date) = :today AND r.branch_id = :bid
         ORDER BY r.date DESC, r.start_time
     """, {"today": today, "bid": branch_id})
 
@@ -248,9 +285,12 @@ async def show_today_reports(callback: types.CallbackQuery):
             f"👷‍♂️ <b>Ishchi:</b> {r['full_name'] or 'Noma’lum'}\n"
             f"🏢 <b>Filial:</b> {r['branch_name']} (ID: {r['branch_id']})\n"
             f"🆔 <b>Telegram ID:</b> <code>{r['user_id']}</code>\n\n"
-            f"📅 <b>Sana:</b> {r['date']}\n"
-            f"🕒 <b>Vaqt:</b> {r['start_time'] or '-'} — {r['end_time'] or '-'}\n\n"
-            f"🧾 <b>Hisobot:</b>\n{r['text']}\n"
+            f"🕒 <b>Vaqt:</b> {r['start_time'] or '-'} — {r['end_time'] or '-'}\n"
+            f"💰 <b>Daromad:</b> {fmt_sum(r['income'])} so‘m\n"
+            f"💸 <b>Rashod:</b> {fmt_sum(r['expense'])} so‘m\n"
+            f"💵 <b>Qolgan:</b> {fmt_sum(r['remaining'])} so‘m\n\n"
+            f"🛒 <b>Sotilganlar:</b>\n{r['sold_items'] or '—'}\n\n"
+            f"📦 <b>Qolgan mahsulotlar:</b>\n{r['notes'] or '—'}\n"
             "━━━━━━━━━━━━━━━━━━━━━━━\n"
         )
 
@@ -275,13 +315,18 @@ async def show_all_reports(callback: types.CallbackQuery):
             r.date,
             r.start_time,
             r.end_time,
-            r.text,
+            r.income,
+            r.expense,
+            r.remaining,
+            r.sold_items,
+            r.notes,
             b.name AS branch_name
         FROM reports r
         LEFT JOIN users u ON u.telegram_id = r.user_id
         LEFT JOIN branches b ON b.id = r.branch_id
-        WHERE r.branch_id = :bid AND r.text IS NOT NULL
+        WHERE r.branch_id = :bid
         ORDER BY r.date DESC, r.start_time
+        LIMIT 50
     """, {"bid": branch_id})
 
     if not reports:
@@ -294,18 +339,27 @@ async def show_all_reports(callback: types.CallbackQuery):
 
     for r in reports:
         result += (
-            f"👷‍♂️ <b>Ishchi:</b> {r['full_name'] or 'Noma’lum'}\n"
-            f"🏢 <b>Filial:</b> {r['branch_name']} (ID: {r['branch_id']})\n"
-            f"🆔 <b>Telegram ID:</b> <code>{r['user_id']}</code>\n\n"
             f"📅 <b>Sana:</b> {r['date']}\n"
-            f"🕒 <b>Vaqt:</b> {r['start_time'] or '-'} — {r['end_time'] or '-'}\n\n"
-            f"🧾 <b>Hisobot:</b>\n{r['text']}\n"
-            "━━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"👷‍♂️ <b>Ishchi:</b> {r['full_name'] or 'Noma’lum'}\n"
+            f"🕒 {r['start_time'] or '-'} — {r['end_time'] or '-'}\n"
+            f"💰 {fmt_sum(r['income'])} | 💸 {fmt_sum(r['expense'])} | 💵 {fmt_sum(r['remaining'])}\n"
+            f"🛒 Sotilganlar:\n{r['sold_items'] or '—'}\n\n"
+            f"📦 Omborda:\n{r['notes'] or '—'}\n"
+            "────────────────────────────\n"
         )
 
     await callback.message.answer(result, parse_mode="HTML")
     await callback.answer()
 
+
+# ===============================
+# 🔢 SUM FORMAT FUNKSIYA
+# ===============================
+def fmt_sum(v):
+    try:
+        return f"{float(v):,.0f}".replace(",", " ")
+    except:
+        return str(v)
 # ===============================
 # Filiallar ro'yxati, qo'shish, o'chirish
 # ===============================
