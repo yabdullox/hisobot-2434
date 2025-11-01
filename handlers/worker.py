@@ -49,15 +49,45 @@ async def start_work(message: Message):
         await message.answer("⚠️ Siz bugun ishni allaqachon boshlagansiz.")
         return
 
+    # ✅ branch_id ni user jadvalidan olish
     user = database.fetchone("SELECT branch_id FROM users WHERE telegram_id=:tid", {"tid": user_id})
     branch_id = user["branch_id"] if user else None
 
+    # ✅ branch_id bilan birga saqlash
     database.execute("""
         INSERT INTO reports (user_id, branch_id, date, start_time)
         VALUES (:u, :b, :d, :t)
     """, {"u": user_id, "b": branch_id, "d": today, "t": start_time})
 
+    # Bonus / jarima
+    ish_boshlash_vaqti = time(9, 0)
+    farq_daqiqa = (datetime.combine(today, now.time()) - datetime.combine(today, ish_boshlash_vaqti)).total_seconds() / 60
+
+    if farq_daqiqa > 10:
+        penalty = round((farq_daqiqa / 60) * 10000)
+        database.execute("""
+            INSERT INTO fines (user_id, amount, reason, created_by, auto)
+            VALUES (:u, :a, :r, :c, TRUE)
+        """, {"u": user_id, "a": penalty, "r": "Kech qolganligi uchun avtomatik jarima", "c": user_id})
+        await message.answer(f"⚠️ Siz {farq_daqiqa:.0f} daqiqa kech keldingiz.\n❌ Jarima: {penalty:,} so‘m.")
+    elif farq_daqiqa < 0:
+        bonus = round((abs(farq_daqiqa) / 60) * 10000)
+        database.execute("""
+            INSERT INTO bonuses (user_id, amount, reason, created_by, auto)
+            VALUES (:u, :a, :r, :c, TRUE)
+        """, {"u": user_id, "a": bonus, "r": "Erta kelganligi uchun avtomatik bonus", "c": user_id})
+        await message.answer(f"🌅 Siz {abs(farq_daqiqa):.0f} daqiqa erta keldingiz.\n✅ Bonus: {bonus:,} so‘m.")
+
     await message.answer(f"🕘 Ish boshlanish vaqti saqlandi: {start_time}")
+
+    # Superadminlarga xabar
+    admins = [int(x.strip()) for x in os.getenv("SUPERADMIN_ID", str(SUPERADMIN_ID)).split(",")]
+    for admin_id in admins:
+        try:
+            await message.bot.send_message(admin_id, f"👷 {message.from_user.full_name} ({user_id}) ishni boshladi ({start_time})")
+        except:
+            pass
+
 
 
 # ===============================
@@ -79,6 +109,7 @@ async def finish_work(message: Message):
         "Endi 🧾 <b>Bugungi hisobotni yuboring</b> tugmasini bosing.",
         parse_mode="HTML"
     )
+
 
 
 # ===============================
@@ -197,127 +228,140 @@ async def problem_waiting_photo_hint(message: Message):
     await message.answer("📎 Rasm yuboring yoki **Yo‘q** deb yozing.")
 
 
+    # =====================================
+    # 💰 BONUS / JARIMALAR BO‘LIMI
+    # =====================================
+    @router.message(F.text == "💰 Bonus / Jarimalarim")
+    async def open_bonus_menu(message: types.Message):
+        """Ishchi bonus/jarimalar menyusini ochish."""
+        await message.answer(
+            "💰 Bonus yoki jarimalar bo‘limini tanlang:",
+            reply_markup=get_bonus_kb()
+        )
+    
+    # =====================================
+    # 📅 BUGUNGI BONUS/JARIMALAR
+    # =====================================
+    @router.message(F.text == "📅 Bugungi")
+    async def show_today_bonus(message: types.Message):
+        """Bugungi bonus va jarimalarni ko‘rsatish."""
+        uz_tz = pytz.timezone("Asia/Tashkent")
+        today = datetime.now(uz_tz).date()
+        user_id = message.from_user.id
+    
+        bonuses = database.fetchall("""
+            SELECT amount, reason, created_at
+            FROM bonuses
+            WHERE user_id = :uid AND DATE(created_at) = :today
+            ORDER BY created_at DESC
+        """, {"uid": user_id, "today": today})
+    
+        fines = database.fetchall("""
+            SELECT amount, reason, created_at
+            FROM fines
+            WHERE user_id = :uid AND DATE(created_at) = :today
+            ORDER BY created_at DESC
+        """, {"uid": user_id, "today": today})
+    
+        text = f"📅 <b>Bugungi ({today}) bonus va jarimalar:</b>\n\n"
+    
+        if not bonuses and not fines:
+            text += "📭 Bugun sizda bonus yoki jarima yozuvlari yo‘q."
+        else:
+            if bonuses:
+                text += "✅ <b>Bonuslar:</b>\n"
+                for b in bonuses:
+                    text += f"➕ {b['amount']:,} so‘m — {b['reason']} ({b['created_at']})\n"
+                text += "\n"
+            if fines:
+                text += "❌ <b>Jarimalar:</b>\n"
+                for f in fines:
+                    text += f"➖ {f['amount']:,} so‘m — {f['reason']} ({f['created_at']})\n"
+    
+        await message.answer(text, parse_mode="HTML")
+    
+    
+    
+    
+    
+    # =====================================
+    # 📋 UMUMIY BONUS/JARIMALAR
+    # =====================================
+    @router.message(F.text == "📋 Umumiy")
+    async def show_all_bonus(message: types.Message):
+        """Umumiy bonus va jarimalarni ko‘rsatish."""
+        user_id = message.from_user.id
+    
+        bonuses = database.fetchall("""
+            SELECT amount, reason, created_at
+            FROM bonuses
+            WHERE user_id = :uid
+            ORDER BY created_at DESC
+            LIMIT 30
+        """, {"uid": user_id})
+    
+        fines = database.fetchall("""
+            SELECT amount, reason, created_at
+            FROM fines
+            WHERE user_id = :uid
+            ORDER BY created_at DESC
+            LIMIT 30
+        """, {"uid": user_id})
+    
+        text = "📋 <b>Umumiy bonus va jarimalar (so‘nggi 30 ta yozuv):</b>\n\n"
+    
+        if not bonuses and not fines:
+            text += "📭 Hozircha bonus yoki jarimalar mavjud emas."
+        else:
+            if bonuses:
+                text += "✅ <b>Bonuslar:</b>\n"
+                for b in bonuses:
+                    text += f"➕ {b['amount']:,} so‘m — {b['reason']} ({b['created_at']})\n"
+                text += "\n"
+            if fines:
+                text += "❌ <b>Jarimalar:</b>\n"
+                for f in fines:
+                    text += f"➖ {f['amount']:,} so‘m — {f['reason']} ({f['created_at']})\n"
+    
+        await message.answer(text, parse_mode="HTML")
+    
+    
+    # =====================================
+    # ⬅️ ORQAGA — ASOSIY ISHCHI MENYUGA QAYTISH
+    # =====================================
+    @router.message(F.text == "⬅️ Orqaga")
+    async def back_to_worker_menu(message: types.Message):
+        """Asosiy ishchi menyusiga qaytish."""
+        await message.answer(
+            "🏠 Asosiy menyuga qaytdingiz.",
+            reply_markup=get_worker_kb()
+        )
+
+
 # ===============================
-# 💰 BONUS / JARIMALAR — menyu va ko‘rish
+# 📓 Eslatma (faqat worker uchun)
 # ===============================
-@router.message(F.text == "💰 Bonus / Jarimalarim")
-async def bonus_menu(message: Message):
-    await message.answer("💰 Bonus / Jarima bo‘limi:", reply_markup=get_bonus_kb())
-
-@router.message(F.text == "📅 Bugungi")
-async def show_today_bonus_fines(message: Message):
-    uz_tz = pytz.timezone("Asia/Tashkent")
-    today = datetime.now(uz_tz).date()
-    uid = message.from_user.id
-
-    bonuses = database.fetchall("""
-        SELECT amount, reason, created_at
-        FROM bonuses
-        WHERE user_id=:u AND DATE(created_at)=:d
-        ORDER BY created_at DESC
-    """, {"u": uid, "d": today})
-
-    fines = database.fetchall("""
-        SELECT amount, reason, created_at
-        FROM fines
-        WHERE user_id=:u AND DATE(created_at)=:d
-        ORDER BY created_at DESC
-    """, {"u": uid, "d": today})
-
-    text = f"📅 <b>Bugungi ({today}) bonus/jarimalar:</b>\n\n"
-    if not bonuses and not fines:
-        text += "📭 Hech narsa yo‘q."
-    else:
-        if bonuses:
-            text += "✅ <b>Bonuslar:</b>\n"
-            for b in bonuses:
-                text += f"➕ {b['amount']:,} so‘m — {b['reason']} ({b['created_at']})\n"
-            text += "\n"
-        if fines:
-            text += "❌ <b>Jarimalar:</b>\n"
-            for f in fines:
-                text += f"➖ {f['amount']:,} so‘m — {f['reason']} ({f['created_at']})\n"
-    await message.answer(text, parse_mode="HTML")
-
-@router.message(F.text == "📊 Umumiy")
-async def show_all_bonus_fines(message: Message):
-    uid = message.from_user.id
-
-    bonuses = database.fetchall("""
-        SELECT amount, reason, created_at
-        FROM bonuses
-        WHERE user_id=:u
-        ORDER BY created_at DESC
-        LIMIT 50
-    """, {"u": uid})
-
-    fines = database.fetchall("""
-        SELECT amount, reason, created_at
-        FROM fines
-        WHERE user_id=:u
-        ORDER BY created_at DESC
-        LIMIT 50
-    """, {"u": uid})
-
-    text = "📋 <b>Umumiy bonus/jarimalar (oxirgi 50):</b>\n\n"
-    if not bonuses and not fines:
-        text += "📭 Hozircha yozuv yo‘q."
-    else:
-        if bonuses:
-            text += "✅ <b>Bonuslar:</b>\n"
-            for b in bonuses:
-                text += f"➕ {b['amount']:,} so‘m — {b['reason']} ({b['created_at']})\n"
-            text += "\n"
-        if fines:
-            text += "❌ <b>Jarimalar:</b>\n"
-            for f in fines:
-                text += f"➖ {f['amount']:,} so‘m — {f['reason']} ({f['created_at']})\n"
-    await message.answer(text, parse_mode="HTML")
-
-
-# ===============================
-# 📓 ESLATMALARIM — ko‘rish/qo‘shish
-# ===============================
-class NotesFSM(StatesGroup):
-    waiting_text = State()
-
-@router.message(F.text == "📓 Eslatmalarim")
-async def open_notes(message: Message, state: FSMContext):
-    uid = message.from_user.id
-    notes = database.list_notes(uid)  # database.py ichida bor
-    text = "📓 <b>Eslatmalarim:</b>\n"
-    if not notes:
-        text += "📭 Hozircha eslatma yo‘q.\n\n"
-    else:
-        for n in notes[:10]:
-            when = n['created_at']
-            text += f"• {n['text']}  ({when})\n"
-        text += "\n"
-    text += "✍️ Yangi eslatma yozib yuboring. Bekor: ⬅️ Orqaga"
-    await message.answer(text, parse_mode="HTML")
-    await state.set_state(NotesFSM.waiting_text)
-
-@router.message(NotesFSM.waiting_text, F.text)
-async def add_note_text(message: Message, state: FSMContext):
-    txt = message.text.strip()
-    if txt in ["🕘 Ishni boshladim", "🏁 Ishni tugatdim", "🧹 Tozalash rasmi yuborish", "💬 Muammo yuborish",
-               "📋 Ombor holati", "🧾 Bugungi hisobotni yuborish", "💰 Bonus / Jarimalarim", "📓 Eslatmalarim",
-               "📅 Bugungi", "📊 Umumiy", "⬅️ Orqaga"]:
-        # Tugma matni yuborilsa — e’tibor bermaymiz
+@router.message(F.text.regexp(r".+") & ~F.text.in_([
+    "🕘 Ishni boshladim", "🏁 Ishni tugatdim",
+    "🧹 Tozalash rasmi yuborish", "💬 Muammo yuborish",
+    "🧾 Bugungi hisobotni yuborish", "💰 Bonus / Jarimalarim",
+    "📓 Eslatmalarim", "⬅️ Menyuga qaytish",
+    "📅 Bugungi", "📋 Umumiy", "⬅️ Orqaga"
+]))
+async def save_note(message: types.Message):
+    """Eslatma funksiyasi endi faqat WORKER foydalanuvchilar uchun ishlaydi."""
+    user = database.fetchone("SELECT role FROM users WHERE telegram_id = :tid", {"tid": message.from_user.id})
+    if not user or user.get("role") != "worker":
         return
 
-    ok = database.add_note(message.from_user.id, txt)
-    if ok:
-        await message.answer("📝 Eslatma saqlandi.", reply_markup=get_worker_kb())
-    else:
-        await message.answer("❌ Eslatma saqlanmadi. Keyinroq yana urunib ko‘ring.", reply_markup=get_worker_kb())
-    await state.clear()
+    text = message.text.strip()
+    if not text:
+        await message.answer("⚠️ Eslatma bo‘sh bo‘lishi mumkin emas.")
+        return
 
-# ⬅️ Orqaga universal
-@router.message(F.text == "⬅️ Orqaga")
-async def back_from_any_state(message: Message, state: FSMContext):
-    await state.clear()
-    await message.answer("🏠 Asosiy menyu:", reply_markup=get_worker_kb())
+    database.execute("INSERT INTO notes (telegram_id, text) VALUES (:u, :t)",
+                     {"u": message.from_user.id, "t": text})
+    await message.answer("📝 Eslatma saqlandi (faqat sizga ko‘rinadi).")
 # ===============================
 # 🧾 Bugungi hisobot
 # ===============================
@@ -509,12 +553,7 @@ async def show_warehouse(message: types.Message):
 
     await message.answer(text, parse_mode="HTML")
 
-# ===============================
-# 💰 BONUS / JARIMALAR
-# ===============================
-@router.message(F.text == "💰 Bonus / Jarimalarim")
-async def open_bonus_menu(message: types.Message):
-    await message.answer("💰 Bonus yoki jarimalar bo‘limini tanlang:", reply_markup=get_bonus_kb())
+
 
 
 # ===============================
