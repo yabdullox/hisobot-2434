@@ -333,6 +333,27 @@ def ensure_reports_columns():
         print("✅ reports jadvali ustunlari tekshirildi va keraklisi qo‘shildi.")
     except Exception as e:
         print(f"⚠️ reports ustunlarini qo‘shishda xato: {e}")
+from sqlalchemy import text
+
+def ensure_reports_columns():
+    """reports jadvalida kerakli ustunlar borligini tekshiradi, yo‘q bo‘lsa avtomatik qo‘shadi"""
+    columns = [
+        ("income", "NUMERIC"),
+        ("expense", "NUMERIC"),
+        ("remaining", "NUMERIC"),
+        ("sold_items", "TEXT"),
+        ("notes", "TEXT")
+    ]
+    try:
+        with engine.begin() as conn:
+            for name, col_type in columns:
+                conn.execute(text(f"""
+                    ALTER TABLE reports
+                    ADD COLUMN IF NOT EXISTS {name} {col_type};
+                """))
+        print("✅ reports jadvalidagi ustunlar tekshirildi (keraklilari qo‘shildi)")
+    except Exception as e:
+        print(f"⚠️ reports jadvalini yangilashda xato: {e}")
 
 # ===============================
 # 🚀 Ishga tushirish testi
