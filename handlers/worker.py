@@ -213,8 +213,7 @@ async def finish_report(message: Message, state: FSMContext):
             "r": remaining, "s": sold_text, "n": remain_text
         })
 
-    await message.answer("✅ Hisobot bazaga saqlandi va yangilandi (agar avval bor bo‘lsa).")
-    await state.clear()
+    
     # 📤 Superadminlarga yuborish
     branch = database.fetchone("SELECT name FROM branches WHERE id=:id", {"id": branch_id})
     bname = branch["name"] if branch else "-"
@@ -242,7 +241,7 @@ async def finish_report(message: Message, state: FSMContext):
     if os.path.exists(file_path):
         os.remove(file_path)
     await state.clear()
-    await message.answer("✅ Hisobot yuborildi va bazaga saqlandi.")
+    await message.answer("✅ Hisobot bazaga saqlandi va yangilandi (agar avval bor bo‘lsa).")
 
 
 # --- 📋 Ombor holati ---
